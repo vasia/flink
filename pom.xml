@@ -48,6 +48,7 @@
 		<module>stratosphere-test-utils</module>
 		<module>stratosphere-addons</module>
 		<module>stratosphere-quickstart</module>
+		<module>stratosphere-fixpoint</module>
 		<module>stratosphere-dist</module>
 	</modules>
 
