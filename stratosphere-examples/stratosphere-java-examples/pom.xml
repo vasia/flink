@@ -81,6 +81,31 @@
 							</includes>
 						</configuration>
 					</execution>
+
+				<!-- Cost Connected Components -->
+					<execution>
+						<id>CostConnectedComponents</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>CostModelConnectedComponents</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>eu.stratosphere.example.java.costmodel.CostModelConnectedComponents</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>**/java/costmodel/CostModelConnectedComponents.class</include>
+								<include>**/java/costmodel/CostModelConnectedComponents$*.class</include>
+								<include>**/java/costmodel/UpdatedElementsCostModelConvergence.class</include>
+							</includes>
+						</configuration>
+					</execution>
+
 					
 					<!-- EnumTriangles Basic -->
 					<execution>
