@@ -1,9 +1,9 @@
 package eu.stratosphere.fixpoint.api;
 
 import eu.stratosphere.api.java.DataSet;
-import eu.stratosphere.api.java.operators.Operator;
-import eu.stratosphere.api.java.operators.UnsortedGrouping;
 import eu.stratosphere.api.java.tuple.Tuple2;
+import eu.stratosphere.api.java.tuple.Tuple3;
+import eu.stratosphere.api.java.tuple.Tuple4;
 
 /**
  * 
@@ -13,17 +13,19 @@ import eu.stratosphere.api.java.tuple.Tuple2;
  * 
  * @param <K> The data type of the vertex keys
  * @param <V> The data type of the vertex values
- * @param <E> The data type of the edges
+ * @param <E> The data type of the edge value
  * 
  */
-public abstract class FixedPointIteration<K, V, E> implements StepFunctionIterative<K, V> {
+public abstract class FixedPointIteration<K, V, E> implements StepFunctionIterative<K, V, E> {
 	
-	public FixedPointIteration(DataSet<Tuple2<K, V>> vertices, DataSet<E> edges) {
-		
+	private DataSet<Tuple2<K, V>> verticesInput;
+	private DataSet<Tuple3<K, K, E>> edgesInput;
+	
+	public FixedPointIteration(DataSet<Tuple2<K, V>> vertices, DataSet<Tuple3<K, K, E>> edges) {
+		this.verticesInput = vertices;
+		this.edgesInput = edges;
 	}
 
-	@Override
-	public abstract Operator<Tuple2<K, V>, ?> stepFunction(UnsortedGrouping<Tuple2<K, V>> neighborsValues);
 	
 	/**
 	 * assembles the plan(s), set the cost model convergence, sets output path, etc.
@@ -32,6 +34,10 @@ public abstract class FixedPointIteration<K, V, E> implements StepFunctionIterat
 	public void submit(String resultPath) {
 		
 	}
+
+
+	@Override
+	public abstract DataSet<Tuple2<K, V>> stepFunction(DataSet<Tuple4<K, K, V, E>> inNeighbors);
 	
 	// set cost model on/off
 	
