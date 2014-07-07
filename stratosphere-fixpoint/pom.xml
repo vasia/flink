@@ -19,14 +19,13 @@
 	<dependencies>
 		<dependency>
 			<groupId>eu.stratosphere</groupId>
-			<artifactId>stratosphere-core</artifactId>
+			<artifactId>stratosphere-java</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>eu.stratosphere</groupId>
-			<artifactId>stratosphere-java</artifactId>
+			<artifactId>stratosphere-clients</artifactId>
 			<version>${project.version}</version>
-			<scope>test</scope>
 		</dependency>
 	</dependencies>
 
