@@ -36,6 +36,7 @@ import eu.stratosphere.api.java.operators.CrossOperator;
 import eu.stratosphere.api.java.operators.CrossOperator.DefaultCross;
 import eu.stratosphere.api.java.operators.CustomUnaryOperation;
 import eu.stratosphere.api.java.operators.DataSink;
+import eu.stratosphere.api.java.operators.DistinctOperator;
 import eu.stratosphere.api.java.operators.FilterOperator;
 import eu.stratosphere.api.java.operators.FlatMapOperator;
 import eu.stratosphere.api.java.operators.Grouping;
@@ -223,6 +224,39 @@ public abstract class DataSet<T> {
 	public AggregateOperator<T> aggregate(Aggregations agg, int field) {
 		return new AggregateOperator<T>(this, agg, field);
 	}
+
+	/**
+	 * Syntactic sugar for aggregate (SUM, field)
+	 * @param field The index of the Tuple field on which the aggregation function is applied.
+	 * @return An AggregateOperator that represents the summed DataSet.
+	 *
+	 * @see eu.stratosphere.api.java.operators.AggregateOperator
+	 */
+	public AggregateOperator<T> sum (int field) {
+		return this.aggregate (Aggregations.SUM, field);
+	}
+
+	/**
+	 * Syntactic sugar for aggregate (MAX, field)
+	 * @param field The index of the Tuple field on which the aggregation function is applied.
+	 * @return An AggregateOperator that represents the max'ed DataSet.
+	 *
+	 * @see eu.stratosphere.api.java.operators.AggregateOperator
+	 */
+	public AggregateOperator<T> max (int field) {
+		return this.aggregate (Aggregations.MAX, field);
+	}
+
+	/**
+	 * Syntactic sugar for aggregate (MIN, field)
+	 * @param field The index of the Tuple field on which the aggregation function is applied.
+	 * @return An AggregateOperator that represents the min'ed DataSet.
+	 *
+	 * @see eu.stratosphere.api.java.operators.AggregateOperator
+	 */
+	public AggregateOperator<T> min (int field) {
+		return this.aggregate (Aggregations.MIN, field);
+	}
 	
 	/**
 	 * Applies a Reduce transformation on a non-grouped {@link DataSet}.<br/>
@@ -268,13 +302,45 @@ public abstract class DataSet<T> {
 	//  distinct
 	// --------------------------------------------------------------------------------------------
 	
-//	public <K extends Comparable<K>> DistinctOperator<T> distinct(KeySelector<T, K> keyExtractor) {
-//		return new DistinctOperator<T>(this, new Keys.SelectorFunctionKeys<T, K>(keyExtractor, getType()));
-//	}
+	/**
+	 * Returns a distinct set of a {@link DataSet} using a {@link KeySelector} function.
+	 * <p/>
+	 * The KeySelector function is called for each element of the DataSet and extracts a single key value on which the
+	 * decision is made if two items are distinct or not.
+	 *  
+	 * @param keyExtractor The KeySelector function which extracts the key values from the DataSet on which the
+	 *                     distinction of the DataSet is decided.
+	 * @return A DistinctOperator that represents the distinct DataSet.
+	 */
+	public <K extends Comparable<K>> DistinctOperator<T> distinct(KeySelector<T, K> keyExtractor) {
+		return new DistinctOperator<T>(this, new Keys.SelectorFunctionKeys<T, K>(keyExtractor, getType()));
+	}
 	
-//	public DistinctOperator<T> distinct(int... fields) {
-//		return new DistinctOperator<T>(this, new Keys.FieldPositionKeys<T>(fields, getType(), true));
-//	}
+	/**
+	 * Returns a distinct set of a {@link Tuple} {@link DataSet} using field position keys.
+	 * <p/>
+	 * The field position keys specify the fields of Tuples on which the decision is made if two Tuples are distinct or
+	 * not.
+	 * <p/>
+	 * Note: Field position keys can only be specified for Tuple DataSets.
+	 *
+	 * @param fields One or more field positions on which the distinction of the DataSet is decided. 
+	 * @return A DistinctOperator that represents the distinct DataSet.
+	 */
+	public DistinctOperator<T> distinct(int... fields) {
+		return new DistinctOperator<T>(this, new Keys.FieldPositionKeys<T>(fields, getType(), true));
+	}
+	
+	/**
+	 * Returns a distinct set of a {@link Tuple} {@link DataSet} using all fields of the tuple.
+	 * <p/>
+	 * Note: This operator can only be applied to Tuple DataSets.
+	 * 
+	 * @return A DistinctOperator that represents the distinct DataSet.
+	 */
+	public DistinctOperator<T> distinct() {
+		return new DistinctOperator<T>(this, null);
+	}
 	
 	// --------------------------------------------------------------------------------------------
 	//  Grouping
@@ -302,7 +368,7 @@ public abstract class DataSet<T> {
 	 * @see SortedGrouping
 	 * @see AggregateOperator
 	 * @see ReduceOperator
-	 * @see GroupReduceOperator
+	 * @see ReduceGroupOperator
 	 * @see DataSet
 	 */
 	public <K extends Comparable<K>> UnsortedGrouping<T> groupBy(KeySelector<T, K> keyExtractor) {
@@ -331,11 +397,40 @@ public abstract class DataSet<T> {
 	 * @see SortedGrouping
 	 * @see AggregateOperator
 	 * @see ReduceOperator
-	 * @see GroupReduceOperator
+	 * @see ReduceGroupOperator
 	 * @see DataSet
 	 */
 	public UnsortedGrouping<T> groupBy(int... fields) {
 		return new UnsortedGrouping<T>(this, new Keys.FieldPositionKeys<T>(fields, getType(), false));
+	}
+
+	/**
+	 * Groups a {@link DataSet} using field expressions. A field expression is either the name of a public field
+	 * or a getter method with parentheses of the {@link DataSet}S underlying type. A dot can be used to drill down
+	 * into objects, as in {@code "field1.getInnerField2()" }.
+	 * This method returns an {@link UnsortedGrouping} on which one of the following grouping transformation
+	 *   can be applied.
+	 * <ul>
+	 *   <li>{@link UnsortedGrouping#sortGroup(int, eu.stratosphere.api.common.operators.Order)} to get a {@link SortedGrouping}.
+	 *   <li>{@link Grouping#aggregate(Aggregations, int)} to apply an Aggregate transformation.
+	 *   <li>{@link Grouping#reduce(ReduceFunction)} to apply a Reduce transformation.
+	 *   <li>{@link Grouping#reduceGroup(GroupReduceFunction)} to apply a GroupReduce transformation.
+	 * </ul>
+	 *
+	 * @param fields One or more field expressions on which the DataSet will be grouped.
+	 * @return A Grouping on which a transformation needs to be applied to obtain a transformed DataSet.
+	 *
+	 * @see Tuple
+	 * @see Grouping
+	 * @see UnsortedGrouping
+	 * @see SortedGrouping
+	 * @see AggregateOperator
+	 * @see ReduceOperator
+	 * @see ReduceGroupOperator
+	 * @see DataSet
+	 */
+	public UnsortedGrouping<T> groupBy(String... fields) {
+		return new UnsortedGrouping<T>(this, new Keys.ExpressionKeys<T>(fields, getType()));
 	}
 	
 	// --------------------------------------------------------------------------------------------

@@ -25,14 +25,40 @@
 	<script type="text/javascript" src="js/helpers.js"></script>
 	<script type="text/javascript" src="js/jobmanagerFrontend.js"></script>
 	<script type="text/javascript" src="js/jcanvas.min.js"></script>
+	
+	<!-- Insert Version -->
+ 	<script type="text/javascript">
+	$(document).ready(function() {
+		$.ajax({ url : "jobsInfo?get=version", type : "GET", cache: false, success : function(json) {
+			$("#version").empty();
+			if (json.version.indexOf("SNAPSHOT") > -1) {
+				$("#version").append(" " + json.version + " - " + json.revision);
+			} else {
+				$("#version").append(" " + json.version);
+			}
+		}, dataType : "json",
+		});
+	});
+  	</script>
+  	
+  	<!-- Load Menu -->
+	<script type="text/javascript">
+	$(document).ready(function() {
+		$.ajax({ url : "menu?get=index", type : "GET", cache: false, success : function(html) {
+			$("#side-menu").empty();
+			$("#side-menu").append(html);
+		}, dataType : "html",
+		});
+	});
+  	</script>
   </head>
 
   <body>
 
     <div id="wrapper">
-
+	  
       <!-- Sidebar -->
-      <nav class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+	  <nav class='navbar navbar-inverse navbar-fixed-top' role='navigation'>
         <!-- Brand and toggle get grouped for better mobile display -->
         <div class="navbar-header">
           <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".navbar-ex1-collapse">
@@ -43,14 +69,12 @@
           </button>
           <a class="navbar-brand" href="index.html">Stratosphere</a>
         </div>
-
+	 
         <!-- Collect the nav links, forms, and other content for toggling -->
         <div class="collapse navbar-collapse navbar-ex1-collapse">
-          <ul class="nav navbar-nav side-nav">
-            <li class="active"><a href="index.html"><i class="fa fa-dashboard"></i> Dashboard</a></li>
-            <li><a href="history.html"><i class="fa fa-bar-chart-o"></i> History</a></li>
+          <ul id="side-menu" class="nav navbar-nav side-nav"> 
+          <!-- Filled via script -->
           </ul>
-
           <ul class="nav navbar-nav navbar-right navbar-user">
             <li class="dropdown user-dropdown">
               <a href="#" class="dropdown-toggle" data-toggle="dropdown"><i class="fa fa-archive"></i> Log Files<b class="caret"></b></a>
@@ -67,7 +91,7 @@
 
         <div class="row">
           <div class="col-lg-12">
-            <h1>Dashboard <small>Statistics Overview</small></h1>
+            <h1>Dashboard Stratosphere<small id="version"></small></h1>
             <ol class="breadcrumb">
               <li class="active"><i class="fa fa-dashboard"></i> Dashboard</li>
             </ol>
@@ -155,4 +179,5 @@
 
     </div><!-- /#wrapper -->
   </body>
+  
 </html>

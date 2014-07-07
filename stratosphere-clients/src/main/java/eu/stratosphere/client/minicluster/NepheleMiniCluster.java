@@ -15,6 +15,7 @@ package eu.stratosphere.client.minicluster;
 
 import java.lang.reflect.Method;
 
+import eu.stratosphere.nephele.ExecutionMode;
 import eu.stratosphere.nephele.instance.HardwareDescriptionFactory;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -27,7 +28,6 @@ import eu.stratosphere.configuration.GlobalConfiguration;
 import eu.stratosphere.nephele.client.JobClient;
 import eu.stratosphere.nephele.jobgraph.JobGraph;
 import eu.stratosphere.nephele.jobmanager.JobManager;
-import eu.stratosphere.nephele.jobmanager.JobManager.ExecutionMode;
 
 
 public class NepheleMiniCluster {
@@ -46,6 +46,8 @@ public class NepheleMiniCluster {
 
 	private static final boolean DEFAULT_LAZY_MEMORY_ALLOCATION = true;
 
+	private static final int DEFAULT_TASK_MANAGER_NUM_SLOTS = -1;
+
 	// --------------------------------------------------------------------------------------------
 	
 	private final Object startStopLock = new Object();
@@ -56,7 +58,9 @@ public class NepheleMiniCluster {
 	
 	private int taskManagerDataPort = DEFAULT_TM_DATA_PORT;
 
-	private int numTaskManager = DEFAULT_NUM_TASK_MANAGER;
+	private int numTaskTracker = DEFAULT_NUM_TASK_MANAGER;
+
+	private int taskManagerNumSlots = DEFAULT_TASK_MANAGER_NUM_SLOTS;
 	
 	private long memorySize = DEFAULT_MEMORY_SIZE;
 	
@@ -149,9 +153,13 @@ public class NepheleMiniCluster {
 		this.defaultAlwaysCreateDirectory = defaultAlwaysCreateDirectory;
 	}
 
-	public void setNumTaskManager(int numTaskManager) { this.numTaskManager = numTaskManager; }
+	public void setNumTaskTracker(int numTaskTracker) { this.numTaskTracker = numTaskTracker; }
 
-	public int getNumTaskManager() { return numTaskManager; }
+	public int getNumTaskTracker() { return numTaskTracker; }
+
+	public void setTaskManagerNumSlots(int taskManagerNumSlots) { this.taskManagerNumSlots = taskManagerNumSlots; }
+
+	public int getTaskManagerNumSlots() { return taskManagerNumSlots; }
 
 	// ------------------------------------------------------------------------
 	// Life cycle and Job Submission
@@ -172,7 +180,7 @@ public class NepheleMiniCluster {
 			} else {
 				Configuration conf = getMiniclusterDefaultConfig(jobManagerRpcPort, taskManagerRpcPort,
 					taskManagerDataPort, memorySize, hdfsConfigFile, lazyMemoryAllocation, defaultOverwriteFiles,
-						defaultAlwaysCreateDirectory, numTaskManager);
+						defaultAlwaysCreateDirectory, taskManagerNumSlots, numTaskTracker);
 				GlobalConfiguration.includeConfiguration(conf);
 			}
 
@@ -196,7 +204,7 @@ public class NepheleMiniCluster {
 			// start the job manager
 			jobManager = new JobManager(ExecutionMode.LOCAL);
 	
-			waitForJobManagerToBecomeReady(numTaskManager);
+			waitForJobManagerToBecomeReady(numTaskTracker);
 		}
 	}
 
@@ -236,7 +244,8 @@ public class NepheleMiniCluster {
 	
 	public static Configuration getMiniclusterDefaultConfig(int jobManagerRpcPort, int taskManagerRpcPort,
 			int taskManagerDataPort, long memorySize, String hdfsConfigFile, boolean lazyMemory,
-			boolean defaultOverwriteFiles, boolean defaultAlwaysCreateDirectory, int numTaskManager)
+			boolean defaultOverwriteFiles, boolean defaultAlwaysCreateDirectory,
+			int taskManagerNumSlots, int numTaskManager)
 	{
 		final Configuration config = new Configuration();
 		
@@ -263,7 +272,7 @@ public class NepheleMiniCluster {
 		config.setBoolean(ConfigConstants.FILESYSTEM_DEFAULT_OVERWRITE_KEY, defaultOverwriteFiles);
 		config.setBoolean(ConfigConstants.FILESYSTEM_OUTPUT_ALWAYS_CREATE_DIRECTORY_KEY, defaultAlwaysCreateDirectory);
 
-		if(memorySize < 0){
+		if (memorySize < 0){
 			memorySize = HardwareDescriptionFactory.extractFromSystem().getSizeOfFreeMemory();
 
 			// at this time, we need to scale down the memory, because we cannot dedicate all free memory to the
@@ -273,17 +282,22 @@ public class NepheleMiniCluster {
 					GlobalConfiguration.getLong(ConfigConstants.TASK_MANAGER_NETWORK_BUFFER_SIZE_KEY,
 							ConfigConstants.DEFAULT_TASK_MANAGER_NETWORK_BUFFER_SIZE);
 
-			memorySize = (long) (0.8 * (memorySize - bufferMem));
+			memorySize = memorySize - (bufferMem * numTaskManager);
+			
+			// apply the fraction that makes sure memory is left to the heap for other data structures and UDFs.
+			memorySize = (long) (memorySize * ConfigConstants.DEFAULT_MEMORY_MANAGER_MEMORY_FRACTION);
 
-			//convert from bytes to mega bytes
+			//convert from bytes to megabytes
 			memorySize >>>= 20;
 		}
 
 		memorySize /= numTaskManager;
 
-		config.setLong(ConfigConstants.TASK_MANAGER_MEMORY_SIZE_KEY, memorySize/numTaskManager);
+		config.setLong(ConfigConstants.TASK_MANAGER_MEMORY_SIZE_KEY, memorySize);
 
 		config.setInteger(ConfigConstants.LOCAL_INSTANCE_MANAGER_NUMBER_TASK_MANAGER, numTaskManager);
+
+		config.setInteger(ConfigConstants.TASK_MANAGER_NUM_TASK_SLOTS, taskManagerNumSlots);
 		
 		return config;
 	}

@@ -1,6 +1,6 @@
 /***********************************************************************************************************************
  *
- * Copyright (C) 2010-2013 by the Stratosphere project (http://stratosphere.eu)
+ * Copyright (C) 2010-2014 by the Stratosphere project (http://stratosphere.eu)
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
  * the License. You may obtain a copy of the License at
@@ -99,6 +99,14 @@ public class Tuple2<T0, T1> extends Tuple {
 		this.f1 = value1;
 	}
 
+	/**
+	* Returns a shallow copy of the tuple with swapped values.
+	*
+	* @return shallow copy of the tuple with swapped values
+	*/
+	public Tuple2<T1, T0> swap() {
+		return new Tuple2<T1, T0>(f1, f0);
+	}
 
 	// -------------------------------------------------------------------------------------------------
 	// standard utilities
@@ -115,5 +123,37 @@ public class Tuple2<T0, T1> extends Tuple {
 		return "(" + StringUtils.arrayAwareToString(this.f0)
 			+ ", " + StringUtils.arrayAwareToString(this.f1)
 			+ ")";
+	}
+
+	/**
+	 * Deep equality for tuples by calling equals() on the tuple members
+	 * @param o the object checked for equality
+	 * @return true if this is equal to o.
+	 */
+	@Override
+	public boolean equals(Object o) {
+		if(this == o) { return true; }
+		if (!(o instanceof Tuple2)) { return false; }
+		@SuppressWarnings("rawtypes")
+		Tuple2 tuple = (Tuple2) o;
+		if (f0 != null ? !f0.equals(tuple.f0) : tuple.f0 != null) { return false; }
+		if (f1 != null ? !f1.equals(tuple.f1) : tuple.f1 != null) { return false; }
+		return true;
+	}
+
+	@Override
+	public int hashCode() {
+		int result = f0 != null ? f0.hashCode() : 0;
+		result = 31 * result + (f1 != null ? f1.hashCode() : 0);
+		return result;
+	}
+
+	/**
+	* Shallow tuple copy.
+	* @returns A new Tuple with the same fields as this.
+	 */
+	public Tuple2<T0,T1> copy(){ 
+		return new Tuple2<T0,T1>(this.f0,
+			this.f1);
 	}
 }

@@ -13,39 +13,30 @@
 
 package eu.stratosphere.test.runtime;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.junit.After;
+
 import eu.stratosphere.configuration.Configuration;
 import eu.stratosphere.core.io.IOReadableWritable;
 import eu.stratosphere.nephele.jobgraph.DistributionPattern;
-import eu.stratosphere.nephele.jobgraph.JobGenericInputVertex;
 import eu.stratosphere.nephele.jobgraph.JobGraph;
 import eu.stratosphere.nephele.jobgraph.JobGraphDefinitionException;
 import eu.stratosphere.nephele.jobgraph.JobInputVertex;
 import eu.stratosphere.nephele.jobgraph.JobOutputVertex;
 import eu.stratosphere.nephele.jobgraph.JobTaskVertex;
-import eu.stratosphere.nephele.template.AbstractGenericInputTask;
-import eu.stratosphere.nephele.template.AbstractOutputTask;
-import eu.stratosphere.nephele.template.AbstractTask;
+import eu.stratosphere.nephele.template.AbstractInvokable;
 import eu.stratosphere.runtime.io.api.RecordReader;
 import eu.stratosphere.runtime.io.api.RecordWriter;
 import eu.stratosphere.runtime.io.channels.ChannelType;
 import eu.stratosphere.test.util.RecordAPITestBase;
 import eu.stratosphere.util.LogUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.junit.After;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-
-@RunWith(Parameterized.class)
-public class NetworkStackThroughput extends RecordAPITestBase {
+public class NetworkStackThroughput {
 
 	private static final Log LOG = LogFactory.getLog(NetworkStackThroughput.class);
 
@@ -53,9 +44,9 @@ public class NetworkStackThroughput extends RecordAPITestBase {
 
 	private static final String USE_FORWARDER_CONFIG_KEY = "use.forwarder";
 
-	private static final String NUM_SUBTASKS_CONFIG_KEY = "num.subtasks";
+	private static final String PARALLELISM_CONFIG_KEY = "num.subtasks";
 
-	private static final String NUM_SUBTASKS_PER_INSTANCE_CONFIG_KEY = "num.subtasks.instance";
+	private static final String NUM_SLOTS_PER_TM_CONFIG_KEY = "num.slots.per.tm";
 
 	private static final String IS_SLOW_SENDER_CONFIG_KEY = "is.slow.sender";
 
@@ -67,115 +58,98 @@ public class NetworkStackThroughput extends RecordAPITestBase {
 
 	// ------------------------------------------------------------------------
 
-	public NetworkStackThroughput(Configuration config) {
-		super(config);
+	// wrapper to reuse RecordAPITestBase code in runs via main()
+	private static class TestBaseWrapper extends RecordAPITestBase {
 
-		setNumTaskManager(2);
-		LogUtils.initializeDefaultConsoleLogger();
-	}
+		private int dataVolumeGb;
+		private boolean useForwarder;
+		private boolean isSlowSender;
+		private boolean isSlowReceiver;
+		private int parallelism;
 
-	@Parameters
-	public static Collection<Object[]> getConfigurations() {
-		Object[][] configParams = new Object[][]{
-				new Object[]{1, false, false, false, 4, 2},
-				new Object[]{1, true, false, false, 4, 2},
-				new Object[]{1, true, true, false, 4, 2},
-				new Object[]{1, true, false, true, 4, 2},
-				new Object[]{2, true, false, false, 4, 2},
-				new Object[]{4, true, false, false, 4, 2},
-				new Object[]{4, true, false, false, 8, 4},
-				new Object[]{4, true, false, false, 16, 8},
-		};
+		public TestBaseWrapper(Configuration config) {
+			super(config);
 
-		List<Configuration> configs = new ArrayList<Configuration>(configParams.length);
-		for (Object[] p : configParams) {
-			Configuration config = new Configuration();
-			config.setInteger(DATA_VOLUME_GB_CONFIG_KEY, (Integer) p[0]);
-			config.setBoolean(USE_FORWARDER_CONFIG_KEY, (Boolean) p[1]);
-			config.setBoolean(IS_SLOW_SENDER_CONFIG_KEY, (Boolean) p[2]);
-			config.setBoolean(IS_SLOW_RECEIVER_CONFIG_KEY, (Boolean) p[3]);
-			config.setInteger(NUM_SUBTASKS_CONFIG_KEY, (Integer) p[4]);
-			config.setInteger(NUM_SUBTASKS_PER_INSTANCE_CONFIG_KEY, (Integer) p[5]);
+			dataVolumeGb = config.getInteger(DATA_VOLUME_GB_CONFIG_KEY, 1);
+			useForwarder = config.getBoolean(USE_FORWARDER_CONFIG_KEY, true);
+			isSlowSender = config.getBoolean(IS_SLOW_SENDER_CONFIG_KEY, false);
+			isSlowReceiver = config.getBoolean(IS_SLOW_RECEIVER_CONFIG_KEY, false);
+			parallelism = config.getInteger(PARALLELISM_CONFIG_KEY, 1);
 
-			configs.add(config);
+			int numSlots = config.getInteger(NUM_SLOTS_PER_TM_CONFIG_KEY, 1);
+
+			if (parallelism % numSlots != 0) {
+				throw new RuntimeException("The test case defines a parallelism that is not a multiple of the slots per task manager.");
+			}
+
+			setNumTaskTracker(parallelism / numSlots);
+			setTaskManagerNumSlots(numSlots);
+
+			LogUtils.initializeDefaultConsoleLogger();
 		}
 
-		return toParameterList(configs);
-	}
-
-	// ------------------------------------------------------------------------
-
-	@Override
-	protected JobGraph getJobGraph() throws Exception {
-		int dataVolumeGb = this.config.getInteger(DATA_VOLUME_GB_CONFIG_KEY, 1);
-		boolean useForwarder = this.config.getBoolean(USE_FORWARDER_CONFIG_KEY, true);
-		boolean isSlowSender = this.config.getBoolean(IS_SLOW_SENDER_CONFIG_KEY, false);
-		boolean isSlowReceiver = this.config.getBoolean(IS_SLOW_RECEIVER_CONFIG_KEY, false);
-		int numSubtasks = this.config.getInteger(NUM_SUBTASKS_CONFIG_KEY, 1);
-		int numSubtasksPerInstance = this.config.getInteger(NUM_SUBTASKS_PER_INSTANCE_CONFIG_KEY, 1);
-
-		return createJobGraph(dataVolumeGb, useForwarder, isSlowSender, isSlowReceiver, numSubtasks, numSubtasksPerInstance);
-	}
-
-	@After
-	public void calculateThroughput() {
-		if (getJobExecutionResult() != null) {
-			int dataVolumeGb = this.config.getInteger(DATA_VOLUME_GB_CONFIG_KEY, 1);
-
-			double dataVolumeMbit = dataVolumeGb * 8192.0;
-			double runtimeSecs = getJobExecutionResult().getNetRuntime() / 1000.0;
-
-			int mbitPerSecond = (int) Math.round(dataVolumeMbit / runtimeSecs);
-
-			LOG.info(String.format("Test finished with throughput of %d MBit/s (" +
-					"runtime [secs]: %.2f, data volume [mbits]: %.2f)", mbitPerSecond, runtimeSecs, dataVolumeMbit));
-		}
-	}
-
-	private JobGraph createJobGraph(int dataVolumeGb, boolean useForwarder, boolean isSlowSender, boolean isSlowReceiver,
-									int numSubtasks, int numSubtasksPerInstance) throws JobGraphDefinitionException {
-
-		JobGraph jobGraph = new JobGraph("Speed Test");
-
-		JobInputVertex producer = new JobGenericInputVertex("Speed Test Producer", jobGraph);
-		producer.setInputClass(SpeedTestProducer.class);
-		producer.setNumberOfSubtasks(numSubtasks);
-		producer.setNumberOfSubtasksPerInstance(numSubtasksPerInstance);
-		producer.getConfiguration().setInteger(DATA_VOLUME_GB_CONFIG_KEY, dataVolumeGb);
-		producer.getConfiguration().setBoolean(IS_SLOW_SENDER_CONFIG_KEY, isSlowSender);
-
-		JobTaskVertex forwarder = null;
-		if (useForwarder) {
-			forwarder = new JobTaskVertex("Speed Test Forwarder", jobGraph);
-			forwarder.setTaskClass(SpeedTestForwarder.class);
-			forwarder.setNumberOfSubtasks(numSubtasks);
-			forwarder.setNumberOfSubtasksPerInstance(numSubtasksPerInstance);
+		@Override
+		protected JobGraph getJobGraph() throws Exception {
+			return createJobGraph(dataVolumeGb, useForwarder, isSlowSender, isSlowReceiver, parallelism);
 		}
 
-		JobOutputVertex consumer = new JobOutputVertex("Speed Test Consumer", jobGraph);
-		consumer.setOutputClass(SpeedTestConsumer.class);
-		consumer.setNumberOfSubtasks(numSubtasks);
-		consumer.setNumberOfSubtasksPerInstance(numSubtasksPerInstance);
-		consumer.getConfiguration().setBoolean(IS_SLOW_RECEIVER_CONFIG_KEY, isSlowReceiver);
+		private JobGraph createJobGraph(int dataVolumeGb, boolean useForwarder, boolean isSlowSender,
+				boolean isSlowReceiver, int numSubtasks) throws JobGraphDefinitionException {
 
-		if (useForwarder) {
-			producer.connectTo(forwarder, ChannelType.NETWORK, DistributionPattern.BIPARTITE);
-			forwarder.connectTo(consumer, ChannelType.NETWORK, DistributionPattern.BIPARTITE);
+			JobGraph jobGraph = new JobGraph("Speed Test");
 
-			forwarder.setVertexToShareInstancesWith(producer);
-			consumer.setVertexToShareInstancesWith(producer);
+			JobInputVertex producer = new JobInputVertex("Speed Test Producer", jobGraph);
+			producer.setInvokableClass(SpeedTestProducer.class);
+			producer.setNumberOfSubtasks(numSubtasks);
+			producer.getConfiguration().setInteger(DATA_VOLUME_GB_CONFIG_KEY, dataVolumeGb);
+			producer.getConfiguration().setBoolean(IS_SLOW_SENDER_CONFIG_KEY, isSlowSender);
+
+			JobTaskVertex forwarder = null;
+			if (useForwarder) {
+				forwarder = new JobTaskVertex("Speed Test Forwarder", jobGraph);
+				forwarder.setInvokableClass(SpeedTestForwarder.class);
+				forwarder.setNumberOfSubtasks(numSubtasks);
+			}
+
+			JobOutputVertex consumer = new JobOutputVertex("Speed Test Consumer", jobGraph);
+			consumer.setInvokableClass(SpeedTestConsumer.class);
+			consumer.setNumberOfSubtasks(numSubtasks);
+			consumer.getConfiguration().setBoolean(IS_SLOW_RECEIVER_CONFIG_KEY, isSlowReceiver);
+
+			if (useForwarder) {
+				producer.connectTo(forwarder, ChannelType.NETWORK, DistributionPattern.BIPARTITE);
+				forwarder.connectTo(consumer, ChannelType.NETWORK, DistributionPattern.BIPARTITE);
+
+				forwarder.setVertexToShareInstancesWith(producer);
+				consumer.setVertexToShareInstancesWith(producer);
+			}
+			else {
+				producer.connectTo(consumer, ChannelType.NETWORK, DistributionPattern.BIPARTITE);
+				producer.setVertexToShareInstancesWith(consumer);
+			}
+
+			return jobGraph;
 		}
-		else {
-			producer.connectTo(consumer, ChannelType.NETWORK, DistributionPattern.BIPARTITE);
-			producer.setVertexToShareInstancesWith(consumer);
-		}
 
-		return jobGraph;
+		@After
+		public void calculateThroughput() {
+			if (getJobExecutionResult() != null) {
+				int dataVolumeGb = this.config.getInteger(DATA_VOLUME_GB_CONFIG_KEY, 1);
+
+				double dataVolumeMbit = dataVolumeGb * 8192.0;
+				double runtimeSecs = getJobExecutionResult().getNetRuntime() / 1000.0;
+
+				int mbitPerSecond = (int) Math.round(dataVolumeMbit / runtimeSecs);
+
+				LOG.info(String.format("Test finished with throughput of %d MBit/s (runtime [secs]: %.2f, " +
+								"data volume [mbits]: %.2f)", mbitPerSecond, runtimeSecs, dataVolumeMbit));
+			}
+		}
 	}
 
 	// ------------------------------------------------------------------------
 
-	public static class SpeedTestProducer extends AbstractGenericInputTask {
+	public static class SpeedTestProducer extends AbstractInvokable {
 
 		private RecordWriter<SpeedTestRecord> writer;
 
@@ -214,7 +188,7 @@ public class NetworkStackThroughput extends RecordAPITestBase {
 		}
 	}
 
-	public static class SpeedTestForwarder extends AbstractTask {
+	public static class SpeedTestForwarder extends AbstractInvokable {
 
 		private RecordReader<SpeedTestRecord> reader;
 
@@ -239,7 +213,7 @@ public class NetworkStackThroughput extends RecordAPITestBase {
 		}
 	}
 
-	public static class SpeedTestConsumer extends AbstractOutputTask {
+	public static class SpeedTestConsumer extends AbstractInvokable {
 
 		private RecordReader<SpeedTestRecord> reader;
 
@@ -282,5 +256,47 @@ public class NetworkStackThroughput extends RecordAPITestBase {
 		public void read(DataInput in) throws IOException {
 			in.readFully(this.buf);
 		}
+	}
+
+	// ------------------------------------------------------------------------
+
+	public void testThroughput() throws Exception {
+		Object[][] configParams = new Object[][]{
+				new Object[]{1, false, false, false, 4, 2},
+				new Object[]{1, true, false, false, 4, 2},
+				new Object[]{1, true, true, false, 4, 2},
+				new Object[]{1, true, false, true, 4, 2},
+				new Object[]{2, true, false, false, 4, 2},
+				new Object[]{4, true, false, false, 4, 2},
+				new Object[]{4, true, false, false, 8, 4},
+				new Object[]{4, true, false, false, 16, 8},
+		};
+
+		for (Object[] p : configParams) {
+			Configuration config = new Configuration();
+			config.setInteger(DATA_VOLUME_GB_CONFIG_KEY, (Integer) p[0]);
+			config.setBoolean(USE_FORWARDER_CONFIG_KEY, (Boolean) p[1]);
+			config.setBoolean(IS_SLOW_SENDER_CONFIG_KEY, (Boolean) p[2]);
+			config.setBoolean(IS_SLOW_RECEIVER_CONFIG_KEY, (Boolean) p[3]);
+			config.setInteger(PARALLELISM_CONFIG_KEY, (Integer) p[4]);
+			config.setInteger(NUM_SLOTS_PER_TM_CONFIG_KEY, (Integer) p[5]);
+
+			TestBaseWrapper test = new TestBaseWrapper(config);
+
+			test.startCluster();
+			test.testJob();
+			test.calculateThroughput();
+			test.stopCluster();
+		}
+	}
+
+	private void runAllTests() throws Exception {
+		testThroughput();
+
+		System.out.println("Done.");
+	}
+
+	public static void main(String[] args) throws Exception {
+		new NetworkStackThroughput().runAllTests();
 	}
 }

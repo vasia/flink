@@ -29,11 +29,6 @@ public final class ConfigConstants {
 	 * The config parameter defining the default degree of parallelism for jobs.
 	 */
 	public static final String DEFAULT_PARALLELIZATION_DEGREE_KEY = "parallelization.degree.default";
-
-	/**
-	 * The config parameter defining the maximal intra-node parallelism for jobs.
-	 */
-	public static final String PARALLELIZATION_MAX_INTRA_NODE_DEGREE_KEY = "parallelization.intra-node.default";
 	
 	// -------------------------------- Runtime -------------------------------
 
@@ -99,6 +94,11 @@ public final class ConfigConstants {
 	public static final String TASK_MANAGER_NETWORK_BUFFER_SIZE_KEY = "taskmanager.network.bufferSizeInBytes";
 
 	/**
+	 * The config parameter defining the number of task slots of a task manager.
+	 */
+	public static final String TASK_MANAGER_NUM_TASK_SLOTS = "taskmanager.numberOfTaskSlots";
+
+	/**
 	 * The number of incoming network IO threads (e.g. incoming connection threads used in NettyConnectionManager
 	 * for the ServerBootstrap.)
 	 */
@@ -121,11 +121,21 @@ public final class ConfigConstants {
 	public static final String TASK_MANAGER_NET_NETTY_HIGH_WATER_MARK = "taskmanager.net.nettyHighWaterMark";
 	
 	/**
-	 * Parameter for the interval in which the RaskManager sends the periodic heart beat messages
+	 * Parameter for the interval in which the TaskManager sends the periodic heart beat messages
 	 * to the JobManager (in msecs).
 	 */
 	public static final String TASK_MANAGER_HEARTBEAT_INTERVAL_KEY = "taskmanager.heartbeat-interval";
-	
+
+	/**
+	 * Flag indicating whether to start a thread, which repeatedly logs the memory usage of the JVM.
+	 */
+	public static final String TASK_MANAGER_DEBUG_MEMORY_USAGE_START_LOG_THREAD = "taskmanager.debug.memory.startLogThread";
+
+	/**
+	 * The interval (in ms) for the log thread to log the current memory usage.
+	 */
+	public static final String TASK_MANAGER_DEBUG_MEMORY_USAGE_LOG_INTERVAL_MS = "taskmanager.debug.memory.logIntervalMs";
+
 	/**
 	 * Parameter for the maximum fan for out-of-core algorithms.
 	 * Corresponds to the maximum fan-in for merge-sorts and the maximum fan-out
@@ -144,12 +154,6 @@ public final class ConfigConstants {
 	 * A value of 0 indicates infinite waiting.
 	 */
 	public static final String FS_STREAM_OPENING_TIMEOUT_KEY = "taskmanager.runtime.fs_timeout";
-	
-	/**
-	 * The config parameter defining whether to use the special multicast logic
-	 * for broadcasts. Use with caution! The multicast logic is experimental at this point.
-	 */
-	public static final String USE_MULTICAST_FOR_BROADCAST = "taskmanager.runtime.multicast-for-broadcast";
 	
 	/**
 	 * The parameter defining the polling interval (in seconds) for the JobClient.
@@ -280,12 +284,7 @@ public final class ConfigConstants {
 	/**
 	 * The default degree of parallelism for operations.
 	 */
-	public static final int DEFAULT_PARALLELIZATION_DEGREE = -1;
-
-	/**
-	 * The default intra-node parallelism.
-	 */
-	public static final int DEFAULT_MAX_INTRA_NODE_PARALLELIZATION_DEGREE = -1;
+	public static final int DEFAULT_PARALLELIZATION_DEGREE = 1;
 	
 	// ------------------------------ Runtime ---------------------------------
 	
@@ -364,6 +363,16 @@ public final class ConfigConstants {
 	 * The default interval for TaskManager heart beats (2000 msecs).
 	 */
 	public static final int DEFAULT_TASK_MANAGER_HEARTBEAT_INTERVAL = 2000;
+
+	/**
+	 * Flag indicating whether to start a thread, which repeatedly logs the memory usage of the JVM.
+	 */
+	public static final boolean DEFAULT_TASK_MANAGER_DEBUG_MEMORY_USAGE_START_LOG_THREAD = false;
+
+	/**
+	 * The interval (in ms) for the log thread to log the current memory usage.
+	 */
+	public static final int DEFAULT_TASK_MANAGER_DEBUG_MEMORY_USAGE_LOG_INTERVAL_MS = 5000;
 	
 	/**
 	 * The default value for the JobClient's polling interval. 2 Seconds.

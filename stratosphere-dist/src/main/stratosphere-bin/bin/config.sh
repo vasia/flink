@@ -167,12 +167,15 @@ if [ -z "${STRATOSPHERE_PID_DIR}" ]; then
     STRATOSPHERE_PID_DIR=$(readFromConfig ${KEY_ENV_PID_DIR} "${DEFAULT_ENV_PID_DIR}" "${YAML_CONF}")
 fi
 
-if [ -z "${STRATOSPHERE_OPTS}" ]; then
-    STRATOSPHERE_OPTS=$(readFromConfig ${KEY_ENV_JAVA_OPTS} "${DEFAULT_ENV_JAVA_OPTS}" "${YAML_CONF}")
+if [ -z "${STRATOSPHERE_ENV_JAVA_OPTS}" ]; then
+    STRATOSPHERE_ENV_JAVA_OPTS=$(readFromConfig ${KEY_ENV_JAVA_OPTS} "${DEFAULT_ENV_JAVA_OPTS}" "${YAML_CONF}")
+
+    # Remove leading and ending double quotes (if present) of value
+    STRATOSPHERE_ENV_JAVA_OPTS="$( echo "${STRATOSPHERE_ENV_JAVA_OPTS}" | sed -e 's/^"//'  -e 's/"$//' )"
 fi
 
 if [ -z "${STRATOSPHERE_SSH_OPTS}" ]; then
-    STRATOSPHERE_OPTS=$(readFromConfig ${KEY_ENV_SSH_OPTS} "${DEFAULT_ENV_SSH_OPTS}" "${YAML_CONF}")
+    STRATOSPHERE_SSH_OPTS=$(readFromConfig ${KEY_ENV_SSH_OPTS} "${DEFAULT_ENV_SSH_OPTS}" "${YAML_CONF}")
 fi
 
 # Arguments for the JVM. Used for job and task manager JVMs.

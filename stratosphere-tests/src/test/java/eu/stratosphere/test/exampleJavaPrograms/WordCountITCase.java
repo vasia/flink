@@ -18,14 +18,15 @@ import eu.stratosphere.example.java.wordcount.WordCount;
 import eu.stratosphere.test.testdata.WordCountData;
 import eu.stratosphere.test.util.JavaProgramTestBase;
 
-
 public class WordCountITCase extends JavaProgramTestBase {
 
 	protected String textPath;
 	protected String resultPath;
 
 	public WordCountITCase(){
-		setNumTaskManager(2);
+		setDegreeOfParallelism(4);
+		setNumTaskTracker(2);
+		setTaskManagerNumSlots(2);
 	}
 
 	@Override

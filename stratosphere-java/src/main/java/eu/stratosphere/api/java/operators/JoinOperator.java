@@ -21,6 +21,7 @@ import eu.stratosphere.api.common.InvalidProgramException;
 import eu.stratosphere.api.common.functions.GenericJoiner;
 import eu.stratosphere.api.common.functions.GenericMap;
 import eu.stratosphere.api.common.operators.BinaryOperatorInformation;
+import eu.stratosphere.api.common.operators.DualInputSemanticProperties;
 import eu.stratosphere.api.common.operators.Operator;
 import eu.stratosphere.api.common.operators.UnaryOperatorInformation;
 import eu.stratosphere.api.common.operators.base.JoinOperatorBase;
@@ -29,6 +30,7 @@ import eu.stratosphere.api.java.DataSet;
 import eu.stratosphere.api.java.DeltaIteration.SolutionSetPlaceHolder;
 import eu.stratosphere.api.java.functions.JoinFunction;
 import eu.stratosphere.api.java.functions.KeySelector;
+import eu.stratosphere.api.java.functions.SemanticPropUtil;
 import eu.stratosphere.api.java.operators.Keys.FieldPositionKeys;
 import eu.stratosphere.api.java.operators.translation.KeyExtractingMapper;
 import eu.stratosphere.api.java.operators.translation.PlanUnwrappingJoinOperator;
@@ -163,9 +165,19 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 			}
 			
 			this.function = function;
-			extractSemanticAnnotationsFromUdf(function.getClass());
+
+			if (!(function instanceof ProjectJoinFunction)) {
+				extractSemanticAnnotationsFromUdf(function.getClass());
+			} else {
+				generateProjectionProperties(((ProjectJoinFunction<?, ?, ?>) function));
+			}
 		}
-		
+
+		public void generateProjectionProperties(ProjectJoinFunction<?, ?, ?> pjf) {
+			DualInputSemanticProperties props = SemanticPropUtil.createProjectionPropertiesDual(pjf.getFields(), pjf.getIsFromFirst());
+			setSemanticProperties(props);
+		}
+
 		// TODO
 //		public EquiJoin<I1, I2, OUT> leftOuter() {
 //			this.preserve1 = true;
@@ -209,8 +221,10 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 				return po;
 				
 			}
-			else if (super.keys1 instanceof Keys.FieldPositionKeys 
-						&& super.keys2 instanceof Keys.FieldPositionKeys)
+			else if ((super.keys1 instanceof Keys.FieldPositionKeys
+						&& super.keys2 instanceof Keys.FieldPositionKeys) ||
+					((super.keys1 instanceof Keys.ExpressionKeys
+							&& super.keys2 instanceof Keys.ExpressionKeys)))
 			{
 				if (!super.keys1.areCompatibale(super.keys2)) {
 					throw new InvalidProgramException("The types of the key fields do not match.");
@@ -417,7 +431,7 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 		 * @return An EquiJoin that represents the joined result DataSet
 		 * 
 		 * @see JoinFunction
-		 * @see EquiJoin
+		 * @see eu.stratosphere.api.java.operators.JoinOperator.EquiJoin
 		 * @see DataSet
 		 */
 		public <R> EquiJoin<I1, I2, R> with(JoinFunction<I1, I2, R> function) {
@@ -434,18 +448,20 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 		 * If the first join input is not a Tuple DataSet, no parameters should be passed.<br/>
 		 * 
 		 * Fields of the first and second input can be added by chaining the method calls of
-		 * {@link JoinProjection#projectFirst(int...)} and {@link JoinProjection#projectSecond(int...)}.
+		 * {@link eu.stratosphere.api.java.operators.JoinOperator.JoinProjection#projectFirst(int...)} and
+		 * {@link eu.stratosphere.api.java.operators.JoinOperator.JoinProjection#projectSecond(int...)}.
 		 * 
 		 * @param firstFieldIndexes If the first input is a Tuple DataSet, the indexes of the selected fields.
 		 * 					   For a non-Tuple DataSet, do not provide parameters.
 		 * 					   The order of fields in the output tuple is defined by to the order of field indexes.
-		 * @return A JoinProjection that needs to be converted into a {@link ProjectJoin} to complete the 
-		 *           Join transformation by calling {@link JoinProjection#types()}.
+		 * @return A JoinProjection that needs to be converted into a
+		 *           {@link eu.stratosphere.api.java.operators.JoinOperator.ProjectJoin} to complete the 
+		 *           Join transformation by calling the corresponding {@code types()} function.
 		 * 
 		 * @see Tuple
 		 * @see DataSet
-		 * @see JoinProjection
-		 * @see ProjectJoin
+		 * @see eu.stratosphere.api.java.operators.JoinOperator.JoinProjection
+		 * @see eu.stratosphere.api.java.operators.JoinOperator.ProjectJoin
 		 */
 		public JoinProjection<I1, I2> projectFirst(int... firstFieldIndexes) {
 			return new JoinProjection<I1, I2>(getInput1(), getInput2(), getKeys1(), getKeys2(), getJoinHint(), firstFieldIndexes, null);
@@ -457,18 +473,20 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 		 * If the second join input is not a Tuple DataSet, no parameters should be passed.<br/>
 		 * 
 		 * Fields of the first and second input can be added by chaining the method calls of
-		 * {@link JoinProjection#projectFirst(int...)} and {@link JoinProjection#projectSecond(int...)}.
+		 * {@link eu.stratosphere.api.java.operators.JoinOperator.JoinProjection#projectFirst(int...)} and
+		 * {@link eu.stratosphere.api.java.operators.JoinOperator.JoinProjection#projectSecond(int...)}.
 		 * 
-		 * @param fieldIndexes If the second input is a Tuple DataSet, the indexes of the selected fields. 
+		 * @param secondFieldIndexes If the second input is a Tuple DataSet, the indexes of the selected fields. 
 		 * 					   For a non-Tuple DataSet, do not provide parameters.
 		 * 					   The order of fields in the output tuple is defined by to the order of field indexes.
-		 * @return A JoinProjection that needs to be converted into a {@link ProjectJoin} to complete the 
-		 *           Join transformation by calling {@link JoinProjection#types()}.
+		 * @return A JoinProjection that needs to be converted into a
+		 *           {@link eu.stratosphere.api.java.operators.JoinOperator.ProjectJoin} to complete the 
+		 *           Join transformation by calling the corresponding {@code types()} function.
 		 * 
 		 * @see Tuple
 		 * @see DataSet
-		 * @see JoinProjection
-		 * @see ProjectJoin
+		 * @see eu.stratosphere.api.java.operators.JoinOperator.JoinProjection
+		 * @see eu.stratosphere.api.java.operators.JoinOperator.ProjectJoin
 		 */
 		public JoinProjection<I1, I2> projectSecond(int... secondFieldIndexes) {
 			return new JoinProjection<I1, I2>(getInput1(), getInput2(), getKeys1(), getKeys2(), getJoinHint(), null, secondFieldIndexes);
@@ -509,6 +527,16 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 			super(input1, input2, keys1, keys2, 
 					new ProjectJoinFunction<I1, I2, OUT>(fields, isFromFirst, returnType.createSerializer().createInstance()), 
 					returnType, hint);
+		}
+
+		@Override
+		public JoinOperator<I1, I2, OUT> withConstantSetFirst(String... constantSetFirst) {
+			throw new InvalidProgramException("The semantic properties (constant fields and forwarded fields) are automatically calculated.");
+		}
+
+		@Override
+		public JoinOperator<I1, I2, OUT> withConstantSetSecond(String... constantSetSecond) {
+			throw new InvalidProgramException("The semantic properties (constant fields and forwarded fields) are automatically calculated.");
 		}
 	}
 	
@@ -577,7 +605,8 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 	/**
 	 * Intermediate step of a Join transformation. <br/>
 	 * To continue the Join transformation, select the join key of the first input {@link DataSet} by calling 
-	 * {@link JoinOperatorSets#where(int...)} or {@link JoinOperatorSets#where(KeySelector)}.
+	 * {@link eu.stratosphere.api.java.operators.JoinOperator.JoinOperatorSets#where(int, int...)} or
+	 * {@link eu.stratosphere.api.java.operators.JoinOperator.JoinOperatorSets#where(KeySelector)}.
 	 *
 	 * @param <I1> The type of the first input DataSet of the Join transformation.
 	 * @param <I2> The type of the second input DataSet of the Join transformation.
@@ -607,17 +636,44 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 		 * Continues a Join transformation. <br/>
 		 * Defines the {@link Tuple} fields of the first join {@link DataSet} that should be used as join keys.<br/>
 		 * <b>Note: Fields can only be selected as join keys on Tuple DataSets.</b><br/>
-		 * 
-		 * @param fields The indexes of the Tuple fields of the first join DataSets that should be used as keys.
+		 *
+		 * @param field0 The first index of the Tuple fields of the first join DataSets that should be used as key
+		 * @param fields The indexes of the other Tuple fields of the first join DataSets that should be used as keys.
 		 * @return An incomplete Join transformation. 
-		 *           Call {@link JoinOperatorSetsPredicate#equalTo(int...)} or {@link JoinOperatorSetsPredicate#equalTo(KeySelector)}
+		 *           Call {@link eu.stratosphere.api.java.operators.JoinOperator.JoinOperatorSets.JoinOperatorSetsPredicate#equalTo(int, int...)} or
+		 *           {@link eu.stratosphere.api.java.operators.JoinOperator.JoinOperatorSets.JoinOperatorSetsPredicate#equalTo(KeySelector)}
 		 *           to continue the Join. 
 		 * 
 		 * @see Tuple
 		 * @see DataSet
 		 */
-		public JoinOperatorSetsPredicate where(int... fields) {
-			return new JoinOperatorSetsPredicate(new Keys.FieldPositionKeys<I1>(fields, input1.getType()));
+		public JoinOperatorSetsPredicate where(int field0, int... fields) {
+			int[] actualFields = new int[fields.length + 1];
+			actualFields[0] = field0;
+			System.arraycopy(fields, 0, actualFields, 1, fields.length);
+			return new JoinOperatorSetsPredicate(new Keys.FieldPositionKeys<I1>(actualFields, input1.getType()));
+		}
+
+		/**
+		 * Continues a Join transformation. <br/>
+		 * Defines the fields of the first join {@link DataSet} that should be used as grouping keys. Fields
+		 * are the names of member fields of the underlying type of the data set.
+		 *
+		 * @param field0 The first field of the Tuple fields of the first join DataSets that should be used as key
+		 * @param fields The  fields of the first join DataSets that should be used as keys.
+		 * @return An incomplete Join transformation.
+		 *           Call {@link eu.stratosphere.api.java.operators.JoinOperator.JoinOperatorSets.JoinOperatorSetsPredicate#equalTo(int, int...)} or
+		 *           {@link eu.stratosphere.api.java.operators.JoinOperator.JoinOperatorSets.JoinOperatorSetsPredicate#equalTo(KeySelector)}
+		 *           to continue the Join.
+		 *
+		 * @see Tuple
+		 * @see DataSet
+		 */
+		public JoinOperatorSetsPredicate where(String field0, String... fields) {
+			String[] actualFields = new String[fields.length + 1];
+			actualFields[0] = field0;
+			System.arraycopy(fields, 0, actualFields, 1, fields.length);
+			return new JoinOperatorSetsPredicate(new Keys.ExpressionKeys<I1>(actualFields, input1.getType()));
 		}
 		
 		/**
@@ -627,7 +683,8 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 		 * 
 		 * @param keySelector The KeySelector function which extracts the key values from the DataSet on which it is joined.
 		 * @return An incomplete Join transformation. 
-		 *           Call {@link JoinOperatorSetsPredicate#equalTo(int...)} or {@link JoinOperatorSetsPredicate#equalTo(KeySelector)}
+		 *           Call {@link eu.stratosphere.api.java.operators.JoinOperator.JoinOperatorSets.JoinOperatorSetsPredicate#equalTo(int, int...)} or
+		 *           {@link eu.stratosphere.api.java.operators.JoinOperator.JoinOperatorSets.JoinOperatorSetsPredicate#equalTo(KeySelector)}
 		 *           to continue the Join. 
 		 * 
 		 * @see KeySelector
@@ -642,7 +699,8 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 		/**
 		 * Intermediate step of a Join transformation. <br/>
 		 * To continue the Join transformation, select the join key of the second input {@link DataSet} by calling 
-		 * {@link JoinOperatorSetsPredicate#equalTo(int...)} or {@link JoinOperatorSetsPredicate#equalTo(KeySelector)}.
+		 * {@link eu.stratosphere.api.java.operators.JoinOperator.JoinOperatorSets.JoinOperatorSetsPredicate#equalTo(int, int...)} or 
+		 * {@link eu.stratosphere.api.java.operators.JoinOperator.JoinOperatorSets.JoinOperatorSetsPredicate#equalTo(KeySelector)}.
 		 *
 		 */
 		public class JoinOperatorSetsPredicate {
@@ -666,15 +724,38 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 			 * {@link DataSet} that should be used as join keys.<br/>
 			 * <b>Note: Fields can only be selected as join keys on Tuple DataSets.</b><br/>
 			 * 
-			 * The resulting {@link DefaultJoin} wraps each pair of joining elements into a {@link Tuple2}, with 
+			 * The resulting {@link eu.stratosphere.api.java.operators.JoinOperator.DefaultJoin} wraps each pair of joining elements into a {@link Tuple2}, with 
 			 * the element of the first input being the first field of the tuple and the element of the 
 			 * second input being the second field of the tuple. 
-			 * 
+			 *
+			 * @param field0 The first field of the Tuple fields of the second join DataSets that should be used as key
 			 * @param fields The indexes of the Tuple fields of the second join DataSet that should be used as keys.
 			 * @return A DefaultJoin that represents the joined DataSet.
 			 */
-			public DefaultJoin<I1, I2> equalTo(int... fields) {
-				return createJoinOperator(new Keys.FieldPositionKeys<I2>(fields, input2.getType()));
+			public DefaultJoin<I1, I2> equalTo(int field0, int... fields) {
+				int[] actualFields = new int[fields.length + 1];
+				actualFields[0] = field0;
+				System.arraycopy(fields, 0, actualFields, 1, fields.length);
+				return createJoinOperator(new Keys.FieldPositionKeys<I2>(actualFields, input2.getType()));
+			}
+
+			/**
+			 * Continues a Join transformation and defines the  fields of the second join
+			 * {@link DataSet} that should be used as join keys.<br/>
+			 *
+			 * The resulting {@link eu.stratosphere.api.java.operators.JoinOperator.DefaultJoin} wraps each pair of joining elements into a {@link Tuple2}, with
+			 * the element of the first input being the first field of the tuple and the element of the
+			 * second input being the second field of the tuple.
+			 *
+			 * @param field0 The first field of the second join DataSets that should be used as key
+			 * @param fields The fields of the second join DataSet that should be used as keys.
+			 * @return A DefaultJoin that represents the joined DataSet.
+			 */
+			public DefaultJoin<I1, I2> equalTo(String field0, String... fields) {
+				String[] actualFields = new String[fields.length + 1];
+				actualFields[0] = field0;
+				System.arraycopy(fields, 0, actualFields, 1, fields.length);
+				return createJoinOperator(new Keys.ExpressionKeys<I2>(actualFields, input2.getType()));
 			}
 
 			/**
@@ -682,7 +763,7 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 			 * The KeySelector function is called for each element of the second DataSet and extracts a single 
 			 * key value on which the DataSet is joined. </br>
 			 * 
-			 * The resulting {@link DefaultJoin} wraps each pair of joining elements into a {@link Tuple2}, with 
+			 * The resulting {@link eu.stratosphere.api.java.operators.JoinOperator.DefaultJoin} wraps each pair of joining elements into a {@link Tuple2}, with 
 			 * the element of the first input being the first field of the tuple and the element of the 
 			 * second input being the second field of the tuple. 
 			 * 
@@ -774,7 +855,15 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 			this.isFromFirst = isFromFirst;
 			this.outTuple = outTupleInstance;
 		}
-		
+
+		protected int[] getFields() {
+			return fields;
+		}
+
+		protected boolean[] getIsFromFirst() {
+			return isFromFirst;
+		}
+
 		public R join(T1 in1, T2 in2) {
 			for(int i=0; i<fields.length; i++) {
 				if(isFromFirst[i]) {
@@ -919,18 +1008,17 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 		 * If the first join input is not a Tuple DataSet, no parameters should be passed.<br/>
 		 * 
 		 * Fields of the first and second input can be added by chaining the method calls of
-		 * {@link JoinProjection#projectFirst(int...)} and {@link JoinProjection#projectSecond(int...)}.
+		 * {@link eu.stratosphere.api.java.operators.JoinOperator.JoinProjection#projectFirst(int...)} and 
+		 * {@link eu.stratosphere.api.java.operators.JoinOperator.JoinProjection#projectSecond(int...)}.
 		 * 
 		 * @param firstFieldIndexes If the first input is a Tuple DataSet, the indexes of the selected fields.
 		 * 					   For a non-Tuple DataSet, do not provide parameters.
 		 * 					   The order of fields in the output tuple is defined by to the order of field indexes.
 		 * @return A JoinProjection that needs to be converted into a {@link ProjectOperator} to complete the 
-		 *           ProjectJoin transformation by calling {@link JoinProjection#types()}.
+		 *           ProjectJoin transformation by calling the corresponding {@code types()} function.
 		 * 
 		 * @see Tuple
 		 * @see DataSet
-		 * @see JoinProjection
-		 * @see ProjectJoin
 		 */
 		public JoinProjection<I1, I2> projectFirst(int... firstFieldIndexes) {
 			
@@ -986,18 +1074,17 @@ public abstract class JoinOperator<I1, I2, OUT> extends TwoInputUdfOperator<I1, 
 		 * If the second join input is not a Tuple DataSet, no parameters should be passed.<br/>
 		 * 
 		 * Fields of the first and second input can be added by chaining the method calls of
-		 * {@link JoinProjection#projectFirst(int...)} and {@link JoinProjection#projectSecond(int...)}.
+		 * {@link eu.stratosphere.api.java.operators.JoinOperator.JoinProjection#projectFirst(int...)} and
+		 * {@link eu.stratosphere.api.java.operators.JoinOperator.JoinProjection#projectSecond(int...)}.
 		 * 
-		 * @param fieldIndexes If the second input is a Tuple DataSet, the indexes of the selected fields. 
+		 * @param secondFieldIndexes If the second input is a Tuple DataSet, the indexes of the selected fields. 
 		 * 					   For a non-Tuple DataSet, do not provide parameters.
 		 * 					   The order of fields in the output tuple is defined by to the order of field indexes.
 		 * @return A JoinProjection that needs to be converted into a {@link ProjectOperator} to complete the 
-		 *           ProjectJoin transformation by calling {@link JoinProjection#types()}.
+		 *           ProjectJoin transformation by calling the corresponding {@code types()} function.
 		 * 
 		 * @see Tuple
 		 * @see DataSet
-		 * @see JoinProjection
-		 * @see ProjectJoin
 		 */
 		public JoinProjection<I1, I2> projectSecond(int... secondFieldIndexes) {
 			

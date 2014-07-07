@@ -15,6 +15,10 @@ package eu.stratosphere.nephele.taskmanager;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryUsage;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
@@ -38,6 +42,13 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import eu.stratosphere.nephele.ExecutionMode;
+import eu.stratosphere.runtime.io.network.LocalConnectionManager;
+import eu.stratosphere.runtime.io.network.NetworkConnectionManager;
+import eu.stratosphere.runtime.io.network.netty.NettyConnectionManager;
+import eu.stratosphere.nephele.taskmanager.transferenvelope.RegisterTaskManagerResult;
+import eu.stratosphere.nephele.types.IntegerRecord;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -47,7 +58,6 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.security.UserGroupInformation;
 
 import eu.stratosphere.api.common.cache.DistributedCache;
 import eu.stratosphere.api.common.cache.DistributedCache.DistributedCacheEntry;
@@ -85,6 +95,7 @@ import eu.stratosphere.pact.runtime.cache.FileCache;
 import eu.stratosphere.runtime.io.channels.ChannelID;
 import eu.stratosphere.runtime.io.network.ChannelManager;
 import eu.stratosphere.runtime.io.network.InsufficientResourcesException;
+import eu.stratosphere.runtime.util.EnvironmentInformation;
 import eu.stratosphere.util.StringUtils;
 
 /**
@@ -141,7 +152,9 @@ public class TaskManager implements TaskOperationProtocol {
 
 	private final IOManager ioManager;
 
-	private static HardwareDescription hardwareDescription = null;
+	private final HardwareDescription hardwareDescription;
+
+	private final int numberOfSlots;
 
 	private final Thread heartbeatThread;
 	
@@ -151,15 +164,16 @@ public class TaskManager implements TaskOperationProtocol {
 	private volatile boolean shutdownComplete;
 	
 	/**
-	 * Constructs a new task manager, starts its IPC service and attempts to discover the job manager to
-	 * receive an initial configuration. All parameters are obtained from the 
+	 * All parameters are obtained from the 
 	 * {@link GlobalConfiguration}, which must be loaded prior to instantiating the task manager.
 	 */
-	public TaskManager() throws Exception {
-		
-		LOG.info("TaskManager started as user " + UserGroupInformation.getCurrentUser().getShortUserName());
-		LOG.info("User system property: " + System.getProperty("user.name"));
-		
+	public TaskManager(ExecutionMode executionMode) throws Exception {
+		if (executionMode == null) {
+			throw new NullPointerException("Execution mode must not be null.");
+		}
+			
+		LOG.info("Execution mode: " + executionMode);
+
 		// IMPORTANT! At this point, the GlobalConfiguration must have been read!
 		
 		final InetSocketAddress jobManagerAddress;
@@ -271,12 +285,9 @@ public class TaskManager implements TaskOperationProtocol {
 
 		// Get the directory for storing temporary files
 		final String[] tmpDirPaths = GlobalConfiguration.getString(ConfigConstants.TASK_MANAGER_TMP_DIR_KEY,
-			ConfigConstants.DEFAULT_TASK_MANAGER_TMP_PATH).split(",|"+File.pathSeparator);
+				ConfigConstants.DEFAULT_TASK_MANAGER_TMP_PATH).split(",|" + File.pathSeparator);
 
 		checkTempDirs(tmpDirPaths);
-		
-		final int pageSize = GlobalConfiguration.getInteger(ConfigConstants.TASK_MANAGER_NETWORK_BUFFER_SIZE_KEY,
-			ConfigConstants.DEFAULT_TASK_MANAGER_NETWORK_BUFFER_SIZE);
 
 		int numBuffers = GlobalConfiguration.getInteger(
 				ConfigConstants.TASK_MANAGER_NETWORK_NUM_BUFFERS_KEY,
@@ -286,48 +297,83 @@ public class TaskManager implements TaskOperationProtocol {
 				ConfigConstants.TASK_MANAGER_NETWORK_BUFFER_SIZE_KEY,
 				ConfigConstants.DEFAULT_TASK_MANAGER_NETWORK_BUFFER_SIZE);
 
-		int numInThreads = GlobalConfiguration.getInteger(
-				ConfigConstants.TASK_MANAGER_NET_NUM_IN_THREADS_KEY,
-				ConfigConstants.DEFAULT_TASK_MANAGER_NET_NUM_IN_THREADS);
-
-		int numOutThreads = GlobalConfiguration.getInteger(
-				ConfigConstants.TASK_MANAGER_NET_NUM_OUT_THREADS_KEY,
-				ConfigConstants.DEFAULT_TASK_MANAGER_NET_NUM_OUT_THREADS);
-
-		int lowWaterMark = GlobalConfiguration.getInteger(
-				ConfigConstants.TASK_MANAGER_NET_NETTY_LOW_WATER_MARK,
-				ConfigConstants.DEFAULT_TASK_MANAGER_NET_NETTY_LOW_WATER_MARK);
-
-		int highWaterMark = GlobalConfiguration.getInteger(
-				ConfigConstants.TASK_MANAGER_NET_NETTY_HIGH_WATER_MARK,
-				ConfigConstants.DEFAULT_TASK_MANAGER_NET_NETTY_HIGH_WATER_MARK);
-
 		// Initialize the channel manager
 		try {
-			this.channelManager = new ChannelManager(
-					this.lookupService, this.localInstanceConnectionInfo,
-					numBuffers, bufferSize, numInThreads, numOutThreads, lowWaterMark, highWaterMark);
+			NetworkConnectionManager networkConnectionManager = null;
+
+			switch (executionMode) {
+				case LOCAL:
+					networkConnectionManager = new LocalConnectionManager();
+					break;
+				case CLUSTER:
+					int numInThreads = GlobalConfiguration.getInteger(
+							ConfigConstants.TASK_MANAGER_NET_NUM_IN_THREADS_KEY,
+							ConfigConstants.DEFAULT_TASK_MANAGER_NET_NUM_IN_THREADS);
+
+					int numOutThreads = GlobalConfiguration.getInteger(
+							ConfigConstants.TASK_MANAGER_NET_NUM_OUT_THREADS_KEY,
+							ConfigConstants.DEFAULT_TASK_MANAGER_NET_NUM_OUT_THREADS);
+
+					int lowWaterMark = GlobalConfiguration.getInteger(
+							ConfigConstants.TASK_MANAGER_NET_NETTY_LOW_WATER_MARK,
+							ConfigConstants.DEFAULT_TASK_MANAGER_NET_NETTY_LOW_WATER_MARK);
+
+					int highWaterMark = GlobalConfiguration.getInteger(
+							ConfigConstants.TASK_MANAGER_NET_NETTY_HIGH_WATER_MARK,
+							ConfigConstants.DEFAULT_TASK_MANAGER_NET_NETTY_HIGH_WATER_MARK);
+
+					networkConnectionManager = new NettyConnectionManager(
+							localInstanceConnectionInfo.address(), localInstanceConnectionInfo.dataPort(),
+							bufferSize, numInThreads, numOutThreads, lowWaterMark, highWaterMark);
+					break;
+			}
+
+			channelManager = new ChannelManager(lookupService, localInstanceConnectionInfo, numBuffers, bufferSize, networkConnectionManager);
 		} catch (IOException ioe) {
 			LOG.error(StringUtils.stringifyException(ioe));
-			throw new Exception("Failed to instantiate channel manager. " + ioe.getMessage(), ioe);
+			throw new Exception("Failed to instantiate ChannelManager.", ioe);
 		}
 
+		// initialize the number of slots
 		{
-			HardwareDescription resources = HardwareDescriptionFactory.extractFromSystem();
-
-			// Check whether the memory size has been explicitly configured. if so that overrides the default mechanism
-			// of taking as much as is mentioned in the hardware description
-			long memorySize = GlobalConfiguration.getInteger(ConfigConstants.TASK_MANAGER_MEMORY_SIZE_KEY, -1);
-
-			if (memorySize > 0) {
-				// manually configured memory size. override the value in the hardware config
-				resources = HardwareDescriptionFactory.construct(resources.getNumberOfCPUCores(),
-					resources.getSizeOfPhysicalMemory(), memorySize * 1024L * 1024L);
+			int slots = GlobalConfiguration.getInteger(ConfigConstants.TASK_MANAGER_NUM_TASK_SLOTS, -1);
+			if (slots == -1) {
+				slots = 1;
+				LOG.info("Number of task slots not configured. Creating one task slot.");
+			} else if (slots <= 0) {
+				throw new Exception("Illegal value for the number of task slots: " + slots);
+			} else {
+				LOG.info("Creating " + slots + " task slot(s).");
 			}
-			this.hardwareDescription = resources;
+			this.numberOfSlots = slots;
+		}
+		
+		this.hardwareDescription = HardwareDescriptionFactory.extractFromSystem();
+		
+		// initialize the memory manager
+		{
+			// Check whether the memory size has been explicitly configured.
+			final long configuredMemorySize = GlobalConfiguration.getInteger(ConfigConstants.TASK_MANAGER_MEMORY_SIZE_KEY, -1);
+			final long memorySize;
+			
+			if (configuredMemorySize == -1) {
+				// no manually configured memory. take a relative fraction of the free heap space
+				float fraction = GlobalConfiguration.getFloat(ConfigConstants.TASK_MANAGER_MEMORY_FRACTION_KEY, ConfigConstants.DEFAULT_MEMORY_MANAGER_MEMORY_FRACTION);
+				memorySize = (long) (this.hardwareDescription.getSizeOfFreeMemory() * fraction);
+				LOG.info("Using " + fraction + " of the free heap space for managed memory.");
+			}
+			else if (configuredMemorySize <= 0) {
+				throw new Exception("Invalid value for Memory Manager memory size: " + configuredMemorySize);
+			}
+			else {
+				memorySize = configuredMemorySize << 20;
+			}
+
+			final int pageSize = GlobalConfiguration.getInteger(ConfigConstants.TASK_MANAGER_NETWORK_BUFFER_SIZE_KEY,
+					ConfigConstants.DEFAULT_TASK_MANAGER_NETWORK_BUFFER_SIZE);
 
 			// Initialize the memory manager
-			LOG.info("Initializing memory manager with " + (resources.getSizeOfFreeMemory() >>> 20) + " megabytes of memory. " +
+			LOG.info("Initializing memory manager with " + (memorySize >>> 20) + " megabytes of memory. " +
 					"Page size is " + pageSize + " bytes.");
 			
 			try {
@@ -335,10 +381,9 @@ public class TaskManager implements TaskOperationProtocol {
 				final boolean lazyAllocation = GlobalConfiguration.getBoolean(ConfigConstants.TASK_MANAGER_MEMORY_LAZY_ALLOCATION_KEY,
 					ConfigConstants.DEFAULT_TASK_MANAGER_MEMORY_LAZY_ALLOCATION);
 				
-				this.memoryManager = new DefaultMemoryManager(resources.getSizeOfFreeMemory(), pageSize);
+				this.memoryManager = new DefaultMemoryManager(memorySize, this.numberOfSlots, pageSize);
 			} catch (Throwable t) {
-				LOG.fatal("Unable to initialize memory manager with " + (resources.getSizeOfFreeMemory() >>> 20)
-					+ " megabytes of memory.", t);
+				LOG.fatal("Unable to initialize memory manager with " + (memorySize >>> 20) + " megabytes of memory.", t);
 				throw new Exception("Unable to initialize memory manager.", t);
 			}
 		}
@@ -351,9 +396,45 @@ public class TaskManager implements TaskOperationProtocol {
 				runHeartbeatLoop();
 			}
 		};
-		
+
 		this.heartbeatThread.setName("Heartbeat Thread");
 		this.heartbeatThread.start();
+
+		// --------------------------------------------------------------------
+		// Memory Usage
+		// --------------------------------------------------------------------
+
+		final MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+		final List<GarbageCollectorMXBean> gcMXBeans = ManagementFactory.getGarbageCollectorMXBeans();
+
+		LOG.info(getMemoryUsageStatsAsString(memoryMXBean));
+
+		boolean startMemoryUsageLogThread = GlobalConfiguration.getBoolean(
+				ConfigConstants.TASK_MANAGER_DEBUG_MEMORY_USAGE_START_LOG_THREAD,
+				ConfigConstants.DEFAULT_TASK_MANAGER_DEBUG_MEMORY_USAGE_START_LOG_THREAD);
+
+		if (startMemoryUsageLogThread && LOG.isDebugEnabled()) {
+			final int logIntervalMs = GlobalConfiguration.getInteger(
+					ConfigConstants.TASK_MANAGER_DEBUG_MEMORY_USAGE_LOG_INTERVAL_MS,
+					ConfigConstants.DEFAULT_TASK_MANAGER_DEBUG_MEMORY_USAGE_LOG_INTERVAL_MS);
+
+			new Thread(new Runnable() {
+				@Override
+				public void run() {
+					try {
+						while (!isShutDown()) {
+							Thread.sleep(logIntervalMs);
+
+							LOG.debug(getMemoryUsageStatsAsString(memoryMXBean));
+
+							LOG.debug(getGarbageCollectorStatsAsString(gcMXBeans));
+						}
+					} catch (InterruptedException e) {
+						LOG.warn("Unexpected interruption of memory usage logger thread.");
+					}
+				}
+			}).start();
+		}
 	}
 
 	private int getAvailablePort() {
@@ -425,18 +506,13 @@ public class TaskManager implements TaskOperationProtocol {
 			LOG.info("Setting temporary directory to "+tempDirVal);
 			GlobalConfiguration.includeConfiguration(c);
 		}
-		System.err.println("Configuration "+GlobalConfiguration.getConfiguration());
-		LOG.info("Current user "+UserGroupInformation.getCurrentUser().getShortUserName());
 		
-		{
-			// log the available JVM memory
-			long maxMemoryMiBytes = Runtime.getRuntime().maxMemory() >>> 20;
-			LOG.info("Starting TaskManager in a JVM with " + maxMemoryMiBytes + " MiBytes maximum heap size.");
-		}
+		// print some startup environment info, like user, code revision, etc
+		EnvironmentInformation.logEnvironmentInfo(LOG, "TaskManager");
 		
 		// Create a new task manager object
 		try {
-			new TaskManager();
+			new TaskManager(ExecutionMode.CLUSTER);
 		} catch (Exception e) {
 			LOG.fatal("Taskmanager startup failed: " + e.getMessage(), e);
 			System.exit(FAILURE_RETURN_CODE);
@@ -459,19 +535,33 @@ public class TaskManager implements TaskOperationProtocol {
 						ConfigConstants.TASK_MANAGER_HEARTBEAT_INTERVAL_KEY,
 						ConfigConstants.DEFAULT_TASK_MANAGER_HEARTBEAT_INTERVAL);
 
-		while (!shutdownStarted.get()) {
-			// send heart beat
-			try {
-				LOG.debug("heartbeat");
-				this.jobManager.sendHeartbeat(this.localInstanceConnectionInfo, this.hardwareDescription);
-			} catch (IOException e) {
-				if (shutdownStarted.get()) {
+		try {
+			while(!shutdownStarted.get()){
+				RegisterTaskManagerResult result  = this.jobManager.registerTaskManager(this
+								.localInstanceConnectionInfo,this.hardwareDescription,
+						new IntegerRecord(this.numberOfSlots));
+
+				if(result.getReturnCode() == RegisterTaskManagerResult.ReturnCode.SUCCESS){
 					break;
-				} else {
-					LOG.error("Sending the heart beat caused an exception: " + e.getMessage(), e);
+				}
+
+				try{
+					Thread.sleep(50);
+				}catch(InterruptedException e){
+					if (!shutdownStarted.get()) {
+						LOG.error("TaskManager register task manager loop was interrupted without shutdown.");
+					}
 				}
 			}
-			
+
+		} catch (IOException e) {
+			if(!shutdownStarted.get()){
+				LOG.error("Registering task manager caused an exception: " + e.getMessage(), e);
+			}
+			return;
+		}
+
+		while (!shutdownStarted.get()) {
 			// sleep until the next heart beat
 			try {
 				Thread.sleep(interval);
@@ -479,6 +569,17 @@ public class TaskManager implements TaskOperationProtocol {
 			catch (InterruptedException e) {
 				if (!shutdownStarted.get()) {
 					LOG.error("TaskManager heart beat loop was interrupted without shutdown.");
+				}
+			}
+
+			// send heart beat
+			try {
+				this.jobManager.sendHeartbeat(this.localInstanceConnectionInfo);
+			} catch (IOException e) {
+				if (shutdownStarted.get()) {
+					break;
+				} else {
+					LOG.error("Sending the heart beat caused an exception: " + e.getMessage(), e);
 				}
 			}
 		}
@@ -910,8 +1011,12 @@ public class TaskManager implements TaskOperationProtocol {
 			this.profiler.shutdown();
 		}
 
-		// Shut down the network channel manager
-		this.channelManager.shutdown();
+		// Shut down the channel manager
+		try {
+			this.channelManager.shutdown();
+		} catch (IOException e) {
+			LOG.warn("ChannelManager did not shutdown properly: " + e.getMessage(), e);
+		}
 
 		// Shut down the memory manager
 		if (this.ioManager != null) {
@@ -1007,5 +1112,41 @@ public class TaskManager implements TaskOperationProtocol {
 				throw new Exception("Temporary file directory '" + f.getAbsolutePath() + "' is not writable.");
 			}
 		}
+	}
+
+	private String getMemoryUsageStatsAsString(MemoryMXBean memoryMXBean) {
+		MemoryUsage heap = memoryMXBean.getHeapMemoryUsage();
+		MemoryUsage nonHeap = memoryMXBean.getNonHeapMemoryUsage();
+
+		int mb = 1 << 20;
+
+		int heapUsed = (int) (heap.getUsed() / mb);
+		int heapCommitted = (int) (heap.getCommitted() / mb);
+		int heapMax = (int) (heap.getMax() / mb);
+
+		int nonHeapUsed = (int) (nonHeap.getUsed() / mb);
+		int nonHeapCommitted = (int) (nonHeap.getCommitted() / mb);
+		int nonHeapMax = (int) (nonHeap.getMax() / mb);
+
+		String msg = String.format("Memory usage stats: [HEAP: %d/%d/%d MB, NON HEAP: %d/%d/%d MB (used/comitted/max)]",
+				heapUsed, heapCommitted, heapMax, nonHeapUsed, nonHeapCommitted, nonHeapMax);
+
+		return msg;
+	}
+
+	private String getGarbageCollectorStatsAsString(List<GarbageCollectorMXBean> gcMXBeans) {
+		StringBuilder str = new StringBuilder();
+		str.append("Garbage collector stats: ");
+
+		for (int i = 0; i < gcMXBeans.size(); i++) {
+			GarbageCollectorMXBean bean = gcMXBeans.get(i);
+
+			String msg = String.format("[%s, GC TIME (ms): %d, GC COUNT: %d]",
+					bean.getName(), bean.getCollectionTime(), bean.getCollectionCount());
+			str.append(msg);
+			str.append(i < gcMXBeans.size() - 1 ? ", " : "");
+		}
+
+		return str.toString();
 	}
 }
