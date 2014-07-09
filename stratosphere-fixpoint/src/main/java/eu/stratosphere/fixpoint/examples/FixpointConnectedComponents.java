@@ -30,7 +30,7 @@ public class FixpointConnectedComponents implements ProgramDescription {
 	
 		DataSet<Tuple2<Long, Long>> result = vertices.runOperation(FixedPointIteration.withValuedEdges(edges, 
 				new MinId(), maxIterations));
-		
+
 		result.print();
 		env.execute("Fixed Point Connected Components");
 		
