@@ -28,7 +28,7 @@ public class FixpointConnectedComponents implements ProgramDescription {
 		
 		int maxIterations = Integer.parseInt(args[3]);
 	
-		DataSet<Tuple2<Long, Long>> result = vertices.runOperation(FixedPointIteration.withValuedEdges(edges, 
+		DataSet<Tuple2<Long, Long>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
 				new MinId(), maxIterations));
 
 		result.print();
