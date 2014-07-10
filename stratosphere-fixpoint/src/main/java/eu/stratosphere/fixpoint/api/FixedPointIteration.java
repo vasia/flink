@@ -119,8 +119,8 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 
 		// check that the key type here is the same as for the edges
 		TypeInformation<K> keyType = ((TupleTypeInfo<?>) inputType).getTypeAt(0);
-		TypeInformation<?> dependencyType = dependenciesWithWeight != null ? dependenciesWithoutWeight.getType() : 
-			dependenciesWithWeight.getType();
+		TypeInformation<?> dependencyType = dependenciesWithWeight != null ? dependenciesWithWeight.getType() : 
+			dependenciesWithoutWeight.getType();
 		TypeInformation<K> dependencyKeyType = ((TupleTypeInfo<?>) dependencyType).getTypeAt(0);
 		
 		Validate.isTrue(keyType.equals(dependencyKeyType), "The first tuple field (the parameter id) of the input data set "
@@ -151,8 +151,8 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		TypeInformation<?>[] parameterTypes = {(BasicTypeInfo<?>)keyType, (BasicTypeInfo<?>)valueType};
 		TypeInformation<Tuple2<K, V>> parameterTypeInfo = new TupleTypeInfo<Tuple2<K,V>>(parameterTypes);
 		
-		TypeInformation<?> dependencyType = dependenciesWithWeight != null ? dependenciesWithoutWeight.getType() : 
-			dependenciesWithWeight.getType();
+		TypeInformation<?> dependencyType = dependenciesWithWeight != null ? dependenciesWithWeight.getType() : 
+			dependenciesWithoutWeight.getType();
 		
 		TypeInformation<?>[] stepFunctionTypesWithoutWeight = {(BasicTypeInfo<?>)keyType, (BasicTypeInfo<?>)keyType, (BasicTypeInfo<?>)valueType}; 
 		TypeInformation<Tuple3<K, K, V>> stepFunctionInputTypeWithoutWeight = new TupleTypeInfo<Tuple3<K,K,V>>(stepFunctionTypesWithoutWeight);
