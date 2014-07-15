@@ -20,6 +20,7 @@ import eu.stratosphere.api.java.typeutils.ResultTypeQueryable;
 import eu.stratosphere.api.java.typeutils.TupleTypeInfo;
 import eu.stratosphere.api.java.typeutils.BasicTypeInfo;
 import eu.stratosphere.configuration.Configuration;
+import eu.stratosphere.types.LongValue;
 import eu.stratosphere.types.TypeInformation;
 import eu.stratosphere.util.Collector;
 
@@ -47,6 +48,8 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	private String name;
 	
 	private static final String UPDATED_ELEMENTS_AGGR = "updated.elements.aggr";
+	private static int iterationsElapsed;
+	private static long bulkUpdatedElements = 0;
 	
 	private FixedPointIteration(DataSet<Tuple3<K, K, E>> dependenciesWithWeight, StepFunction<K, V, E> stepFunction, 
 			int maxIterations) {
@@ -131,8 +134,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		this.parametersInput = inputData;
 		
 	}
-	
-	@SuppressWarnings({ "unchecked", "rawtypes" })
+
 	@Override
 	public DataSet<Tuple2<K, V>> createResult() {
 
@@ -173,6 +175,25 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		 * Start with a bulk iteration
 		 */
 		
+		DataSet<Tuple2<K, V>> bulkResult = doBulkIteration(name, stepFunctionInputTypeWithWeight, stepFunctionInputTypeWithoutWeight,
+				parameterTypeInfo);
+		
+		// TODO: check whether there are iterations left
+		
+		/**
+		 * TODO: If there are no elements changed during the last bulk iteration,
+		 * we shouldn't execute any dependency iteration
+		 */
+			
+		DataSet<Tuple2<K, V>> depResult = doDependencyIteration(name, bulkResult, tupleKeyType, dependencyType, 
+				stepFunctionInputTypeWithWeight, stepFunctionInputTypeWithoutWeight, parameterTypeInfo);
+		return depResult;
+	}
+
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private DataSet<Tuple2<K, V>> doBulkIteration(String name, TypeInformation<Tuple4<K, K, V, E>> stepFunctionInputTypeWithWeight, 
+			TypeInformation<Tuple3<K, K, V>> stepFunctionInputTypeWithoutWeight, 
+			TypeInformation<Tuple2<K, V>> parameterTypeInfo) {
 		// set up the iteration operator
 		IterativeDataSet<Tuple2<K, V>> iteration = parametersInput.iterate(maxIterations);
 		iteration.name(name);
@@ -196,20 +217,13 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 												.flatMap(new AggregateAndEmitUpdatedValue(parameterTypeInfo));
 		// close the iteration
 		DataSet<Tuple2<K, V>> bulkResult = iteration.closeWith(updatedParameters);
-
-
-		/**
-		 *  Continue with a dependency iteration
-		 */
-
-		/**
-		 * TODO: find a way to figure out how many iterations out of maxIterations are left. 
-		 * If there are no iterations left or no elements changed during the last bulk iteration,
-		 * we shouldn't execute any dependency iteration
-		 */
-		
-		DeltaIteration<Tuple2<K, V>, Tuple2<K, V>> depIteration = bulkResult.iterateDelta(bulkResult, maxIterations, 
-				0);
+		return bulkResult;
+	}
+	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private DataSet<Tuple2<K, V>> doDependencyIteration(String name, DataSet<Tuple2<K, V>> bulkResult, TypeInformation<Tuple1<K>> tupleKeyType, TypeInformation<?> dependencyType, TypeInformation<Tuple4<K, K, V, E>> stepFunctionInputTypeWithWeight, TypeInformation<Tuple3<K, K, V>> stepFunctionInputTypeWithoutWeight, TypeInformation<Tuple2<K, V>> parameterTypeInfo) {
+		DeltaIteration<Tuple2<K, V>, Tuple2<K, V>> depIteration = bulkResult.iterateDelta(bulkResult, 
+				maxIterations - iterationsElapsed + 1, 0);
 		depIteration.name("Dependency iteration:" + name);
 		
 		DataSet<Tuple2<K, V>> dependencyParametersWithNewValues;
@@ -233,6 +247,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		
 		return result;
 	}
+
 
 	private DataSet<Tuple2<K, V>> getBulkResultWithoutWeight(
 			IterativeDataSet<Tuple2<K, V>> iteration, TypeInformation<Tuple3<K, K, V>> stepFunctionInputType) {
@@ -388,9 +403,14 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		
 		@Override
 		public void open(Configuration conf) {
-			updatedElementsAggr = getIterationRuntimeContext().getIterationAggregator(UPDATED_ELEMENTS_AGGR);
-			int superstep = getIterationRuntimeContext().getSuperstepNumber();
-			System.out.println("Bulk Iteration " + superstep);
+			updatedElementsAggr = getIterationRuntimeContext().getIterationAggregator(UPDATED_ELEMENTS_AGGR); 
+			iterationsElapsed = getIterationRuntimeContext().getSuperstepNumber();
+			if (iterationsElapsed > 1) {
+				LongValue updatedElementsValue = getIterationRuntimeContext().getPreviousIterationAggregate(UPDATED_ELEMENTS_AGGR);
+				bulkUpdatedElements = updatedElementsValue.getValue();
+				System.out.println("Updated elements: " +bulkUpdatedElements);
+			}
+			System.out.println("Bulk Iteration " + iterationsElapsed);
 		}
 
 		@Override
@@ -489,6 +509,8 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	
 	}
 
+	//TODO: provide a way to define a delta as a measure of how much of a change is considered an updated value?
+	// e.g. in PageRank
 	private static final class EmitOnlyUpdatedValues<K, V> extends FlatMapFunction
 		<Tuple2<Tuple2<K, V>, Tuple2<K, V>>, Tuple2<K, V>> 
 		implements ResultTypeQueryable<Tuple2<K, V>> {
