@@ -1,11 +1,11 @@
-package eu.stratosphere.fixpoint.api;
+package org.apache.flink.fixpoint.api;
 
 import java.io.Serializable;
 
-import eu.stratosphere.api.java.DataSet;
-import eu.stratosphere.api.java.tuple.Tuple2;
-import eu.stratosphere.api.java.tuple.Tuple4;
-import eu.stratosphere.util.Collector;
+import org.apache.flink.api.java.DataSet;
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple4;
+import org.apache.flink.util.Collector;
 
 /**
  *

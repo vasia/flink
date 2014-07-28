@@ -1,28 +1,27 @@
-package eu.stratosphere.fixpoint.api;
+package org.apache.flink.fixpoint.api;
 
 import java.util.Iterator;
 
 import org.apache.commons.lang3.Validate;
-
-import eu.stratosphere.api.common.aggregators.LongSumAggregator;
-import eu.stratosphere.api.java.DataSet;
-import eu.stratosphere.api.java.DeltaIteration;
-import eu.stratosphere.api.java.IterativeDataSet;
-import eu.stratosphere.api.java.functions.FlatMapFunction;
-import eu.stratosphere.api.java.functions.GroupReduceFunction;
-import eu.stratosphere.api.java.operators.CustomUnaryOperation;
-import eu.stratosphere.api.java.operators.FlatMapOperator;
-import eu.stratosphere.api.java.tuple.Tuple1;
-import eu.stratosphere.api.java.tuple.Tuple2;
-import eu.stratosphere.api.java.tuple.Tuple3;
-import eu.stratosphere.api.java.tuple.Tuple4;
-import eu.stratosphere.api.java.typeutils.ResultTypeQueryable;
-import eu.stratosphere.api.java.typeutils.TupleTypeInfo;
-import eu.stratosphere.api.java.typeutils.BasicTypeInfo;
-import eu.stratosphere.configuration.Configuration;
-import eu.stratosphere.types.LongValue;
-import eu.stratosphere.types.TypeInformation;
-import eu.stratosphere.util.Collector;
+import org.apache.flink.api.common.aggregators.LongSumAggregator;
+import org.apache.flink.api.java.DataSet;
+import org.apache.flink.api.java.DeltaIteration;
+import org.apache.flink.api.java.IterativeDataSet;
+import org.apache.flink.api.java.functions.FlatMapFunction;
+import org.apache.flink.api.java.functions.GroupReduceFunction;
+import org.apache.flink.api.java.operators.CustomUnaryOperation;
+import org.apache.flink.api.java.operators.FlatMapOperator;
+import org.apache.flink.api.java.tuple.Tuple1;
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.tuple.Tuple4;
+import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
+import org.apache.flink.api.java.typeutils.TupleTypeInfo;
+import org.apache.flink.api.java.typeutils.BasicTypeInfo;
+import org.apache.flink.types.LongValue;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.types.TypeInformation;
+import org.apache.flink.util.Collector;
 
 /**
  * 

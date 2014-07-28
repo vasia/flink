@@ -52,21 +52,6 @@ under the License.
 	</scm>
 
 	<modules>
-<<<<<<< HEAD
-		<module>stratosphere-core</module>
-		<module>stratosphere-java</module>
-		<module>stratosphere-scala</module>
-		<module>stratosphere-runtime</module>
-		<module>stratosphere-compiler</module>
-		<module>stratosphere-examples</module>
-		<module>stratosphere-clients</module>
-		<module>stratosphere-tests</module>
-		<module>stratosphere-test-utils</module>
-		<module>stratosphere-addons</module>
-		<module>stratosphere-quickstart</module>
-		<module>stratosphere-fixpoint</module>
-		<module>stratosphere-dist</module>
-=======
 		<module>flink-core</module>
 		<module>flink-java</module>
 		<module>flink-scala</module>
@@ -79,7 +64,7 @@ under the License.
 		<module>flink-addons</module>
 		<module>flink-quickstart</module>
 		<module>flink-dist</module>
->>>>>>> 25b4099d3af85ae881aaa52ddae0d71f37e67b4c
+		<module>flink-fixpoint</module>
 	</modules>
 
 	<properties>

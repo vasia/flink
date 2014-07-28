@@ -1,16 +1,16 @@
-package eu.stratosphere.fixpoint.examples;
+package org.apache.flink.fixpoint.examples;
 
-import eu.stratosphere.api.common.ProgramDescription;
-import eu.stratosphere.api.java.DataSet;
-import eu.stratosphere.api.java.ExecutionEnvironment;
-import eu.stratosphere.api.java.aggregation.Aggregations;
-import eu.stratosphere.api.java.functions.FlatMapFunction;
-import eu.stratosphere.api.java.tuple.Tuple2;
-import eu.stratosphere.api.java.tuple.Tuple3;
-import eu.stratosphere.api.java.tuple.Tuple4;
-import eu.stratosphere.fixpoint.api.FixedPointIteration;
-import eu.stratosphere.fixpoint.api.StepFunction;
-import eu.stratosphere.util.Collector;
+import org.apache.flink.fixpoint.api.FixedPointIteration;
+import org.apache.flink.fixpoint.api.StepFunction;
+import org.apache.flink.util.Collector;
+import org.apache.flink.api.common.ProgramDescription;
+import org.apache.flink.api.java.DataSet;
+import org.apache.flink.api.java.ExecutionEnvironment;
+import org.apache.flink.api.java.aggregation.Aggregations;
+import org.apache.flink.api.java.functions.FlatMapFunction;
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.tuple.Tuple4;
 
 public class FixpointSSSP implements ProgramDescription {
 

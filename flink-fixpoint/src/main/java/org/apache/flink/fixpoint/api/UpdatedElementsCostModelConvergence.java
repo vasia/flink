@@ -1,7 +1,7 @@
-package eu.stratosphere.fixpoint.api;
+package org.apache.flink.fixpoint.api;
 
-import eu.stratosphere.api.common.aggregators.ConvergenceCriterion;
-import eu.stratosphere.types.LongValue;
+import org.apache.flink.api.common.aggregators.ConvergenceCriterion;
+import org.apache.flink.types.LongValue;
 
 
 @SuppressWarnings("serial")
