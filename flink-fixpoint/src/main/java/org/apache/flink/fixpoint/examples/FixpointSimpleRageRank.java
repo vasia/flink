@@ -17,7 +17,8 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 	public static void main(String... args) throws Exception {
 		
 		if (args.length < 4) {
-			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <max_iterations>");
+			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <max_iterations>"
+					+ " <execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>");
 			return;
 		}
 		
@@ -31,7 +32,7 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 		int maxIterations = Integer.parseInt(args[3]);
 		
 		DataSet<Tuple2<Long, Double>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
-				new UpdateRanks(), maxIterations));
+				new UpdateRanks(), maxIterations, args[4]));
 
 		result.print();
 		env.execute("Fixed Point Simple PageRank");
@@ -69,7 +70,8 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 	
 	@Override
 	public String getDescription() {
-		return "Parameters: <vertices-path> <edges-path> <result-path> <max-number-of-iterations>";
+		return "Parameters: <vertices-path> <edges-path> <result-path> <max-number-of-iterations> "
+				+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>";
 	}
 
 }

@@ -26,7 +26,8 @@ public class FixpointCommunityDetection implements ProgramDescription {
 	public static void main(String... args) throws Exception {
 		
 		if (args.length < 4) {
-			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <max_iterations>");
+			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <max_iterations>"
+					+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>");
 			return;
 		}
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
@@ -48,7 +49,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		int maxIterations = Integer.parseInt(args[3]);
 	
 		DataSet<Tuple2<Long, Tuple2<Long, Double>>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
-				new ComputeCommunities(), maxIterations));
+				new ComputeCommunities(), maxIterations, args[4]));
 
 		result.print();
 		env.execute("Fixed Point Community Detection");
@@ -131,7 +132,6 @@ public class FixpointCommunityDetection implements ProgramDescription {
 				// TODO: multiply with degree(vertex)^m
 				scoreSum += current.f3 * current.f4;
 			}
-			System.out.println("Group ID: " + result.f0 + ", label: " + result.f1 );
 			result.setField(scoreSum, 2);
 			out.collect(result);
 		}
@@ -165,7 +165,6 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		@Override
 		public Tuple2<Long, Tuple2<Long, Double>> map(Tuple3<Long, Long, Double> value)
 				throws Exception {
-			System.out.println("VID:" + value.f0 + ", label: " + value.f1 + ", score: " +value.f2);
 			return new Tuple2<Long, Tuple2<Long, Double>>(
 					value.f0, new Tuple2<Long, Double>(value.f1, value.f2 - (delta / (double) superstep)));
 		}
@@ -174,7 +173,8 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		
 	@Override
 	public String getDescription() {
-		return "Parameters: <vertices-path> <edges-path> <result-path> <max-number-of-iterations>";
+		return "Parameters: <vertices-path> <edges-path> <result-path> <max-number-of-iterations> "
+				+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>";
 	}
 
 }

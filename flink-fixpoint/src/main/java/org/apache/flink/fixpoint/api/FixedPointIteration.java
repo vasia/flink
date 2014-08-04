@@ -18,7 +18,6 @@ import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.api.java.typeutils.BasicTypeInfo;
-import org.apache.flink.api.java.typeutils.GenericTypeInfo;
 import org.apache.flink.types.LongValue;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.types.TypeInformation;
@@ -46,13 +45,15 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	private final StepFunction<K, V, E> stepFunction;
 	private final int maxIterations;
 	private String name;
+	private String execMode = "COST_MODEL";	// default value
 	
 	private static final String UPDATED_ELEMENTS_AGGR = "updated.elements.aggr";
 	private static int iterationsElapsed;
 	private static long bulkUpdatedElements = 0;
+	 
 	
 	private FixedPointIteration(DataSet<Tuple3<K, K, E>> dependenciesWithWeight, StepFunction<K, V, E> stepFunction, 
-			int maxIterations) {
+			int maxIterations, String mode) {
 
 		Validate.notNull(dependenciesWithWeight);
 		Validate.isTrue(maxIterations > 0, "The maximum number of iterations must be at least one.");
@@ -72,11 +73,12 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		this.stepFunction  = stepFunction;
 		this.numberOfParameters = 9; // parametersInput.count()
 		this.avgNodeDegree = 3.0; // dependenciesWithInput.count() / numberOfParameters
+		this.execMode = mode != null ? mode : "COST_MODEL";		
 
 	}
 	
 	private FixedPointIteration(DataSet<Tuple2<K, K>> dependenciesWithoutWeight, StepFunction<K, V, E> stepFunction, 
-			int maxIterations, boolean noDepepndencyWeight) {
+			int maxIterations, String mode, boolean noDepepndencyWeight) {
 		
 		Validate.notNull(dependenciesWithoutWeight);
 		Validate.isTrue(maxIterations > 0, "The maximum number of iterations must be at least one.");
@@ -96,7 +98,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		this.stepFunction  = stepFunction;
 		this.numberOfParameters = 9; // verticesInput.count()
 		this.avgNodeDegree = 3.0; // edgesInput.count() / numberOfVertices
-
+		this.execMode = mode != null ? mode : "COST_MODEL";
 	}
 
 	
@@ -172,22 +174,42 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 			"Fixpoint iteration (" + stepFunction + ")";
 		
 		/**
-		 * Start with a bulk iteration
+		 * Check whether the execution type has been defined
 		 */
-		
-		DataSet<Tuple2<K, V>> bulkResult = doBulkIteration(name, stepFunctionInputTypeWithWeight, stepFunctionInputTypeWithoutWeight,
-				parameterTypeInfo);
-		
-		// TODO: check whether there are iterations left
-		
-		/**
-		 * TODO: If there are no elements changed during the last bulk iteration,
-		 * we shouldn't execute any dependency iteration
-		 */
+		switch (execMode) {
+		case "BULK":
+			DataSet<Tuple2<K, V>> bulkResult = doBulkIteration(name, stepFunctionInputTypeWithWeight, stepFunctionInputTypeWithoutWeight,
+					parameterTypeInfo);
+			return bulkResult;
+		case "INCREMENTAL":
+			DataSet<Tuple2<K, V>> incrResult = doIncrementalIteration(name, stepFunctionInputTypeWithWeight, stepFunctionInputTypeWithoutWeight,
+					parameterTypeInfo);
+			return incrResult;
+		case "DELTA":
+			DataSet<Tuple2<K, V>> deltaResult = doDeltaIteration(name, stepFunctionInputTypeWithWeight, stepFunctionInputTypeWithoutWeight,
+					parameterTypeInfo);
+			return deltaResult;
+		case "COST_MODEL":
+			/**
+			 * Start with a bulk iteration
+			 */
 			
-		DataSet<Tuple2<K, V>> depResult = doDependencyIteration(name, bulkResult, tupleKeyType, dependencyType, 
-				stepFunctionInputTypeWithWeight, stepFunctionInputTypeWithoutWeight, parameterTypeInfo);
-		return depResult;
+			DataSet<Tuple2<K, V>> bulkIntermediate = doBulkIteration(name, stepFunctionInputTypeWithWeight, stepFunctionInputTypeWithoutWeight,
+					parameterTypeInfo);
+			
+			// TODO: check whether there are iterations left
+			
+			/**
+			 * TODO: If there are no elements changed during t			break;he last bulk iteration,
+			 * we shouldn't execute any dependency iteration
+			 */
+				
+			DataSet<Tuple2<K, V>> depResult = doDependencyIteration(name, bulkIntermediate, tupleKeyType, dependencyType, 
+					stepFunctionInputTypeWithWeight, stepFunctionInputTypeWithoutWeight, parameterTypeInfo);
+			return depResult;
+		default:
+			throw new IllegalArgumentException("Unkown execution mode " + execMode);
+		}
 		
 	}
 
@@ -247,6 +269,20 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		DataSet<Tuple2<K, V>> result = depIteration.closeWith(dependencyUpdatedParameters, dependencyUpdatedParameters);
 		
 		return result;
+	}
+	
+	private DataSet<Tuple2<K, V>> doIncrementalIteration(String name, TypeInformation<Tuple4<K, K, V, E>> stepFunctionInputTypeWithWeight, 
+			TypeInformation<Tuple3<K, K, V>> stepFunctionInputTypeWithoutWeight, 
+			TypeInformation<Tuple2<K, V>> parameterTypeInfo) {
+		
+		return null;
+	}
+	
+	private DataSet<Tuple2<K, V>> doDeltaIteration(String name, TypeInformation<Tuple4<K, K, V, E>> stepFunctionInputTypeWithWeight, 
+			TypeInformation<Tuple3<K, K, V>> stepFunctionInputTypeWithoutWeight, 
+			TypeInformation<Tuple2<K, V>> parameterTypeInfo) {
+		
+		return null;
 	}
 
 
@@ -314,9 +350,10 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	public static final <K, V> FixedPointIteration<K, V, Object> withPlainDependencies(
 					DataSet<Tuple2<K, K>> dependenciesWithoutWeight,
 						StepFunction<K, V, Object> stepFunction,
-						int maximumNumberOfIterations)
+						int maximumNumberOfIterations, String mode)
 	{		
-		return new FixedPointIteration<K, V, Object>(dependenciesWithoutWeight, stepFunction, maximumNumberOfIterations, true);
+		return new FixedPointIteration<K, V, Object>(dependenciesWithoutWeight, stepFunction, 
+				maximumNumberOfIterations, mode, true);
 	}
 	
 	/**
@@ -334,10 +371,11 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	public static final <K, V, E> FixedPointIteration<K, V, E> withWeightedDependencies(
 					DataSet<Tuple3<K, K, E>> dependenciesWithWeight,
 					StepFunction<K, V, E> stepFunction,
-					int maximumNumberOfIterations)
+					int maximumNumberOfIterations, String mode)
 	{
-		return new FixedPointIteration<K, V, E>(dependenciesWithWeight, stepFunction, maximumNumberOfIterations);
+		return new FixedPointIteration<K, V, E>(dependenciesWithWeight, stepFunction, maximumNumberOfIterations, mode);
 	}
+	
 	
 	/**
 	 * Sets the name for the fixpoint iteration. The name is displayed in logs and messages.
