@@ -18,6 +18,7 @@ import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.api.java.typeutils.BasicTypeInfo;
+import org.apache.flink.api.java.typeutils.GenericTypeInfo;
 import org.apache.flink.types.LongValue;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.types.TypeInformation;
@@ -149,13 +150,13 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		
 		TypeInformation<V> valueType = ((TupleTypeInfo<?>) parametersInput.getType()).getTypeAt(1);
 		
-		TypeInformation<?>[] parameterTypes = {(BasicTypeInfo<?>)keyType, (BasicTypeInfo<?>)valueType};
+		TypeInformation<?>[] parameterTypes = {(BasicTypeInfo<?>)keyType, valueType};
 		TypeInformation<Tuple2<K, V>> parameterTypeInfo = new TupleTypeInfo<Tuple2<K,V>>(parameterTypes);
 		
 		TypeInformation<?> dependencyType = dependenciesWithWeight != null ? dependenciesWithWeight.getType() : 
 			dependenciesWithoutWeight.getType();
 		
-		TypeInformation<?>[] stepFunctionTypesWithoutWeight = {(BasicTypeInfo<?>)keyType, (BasicTypeInfo<?>)keyType, (BasicTypeInfo<?>)valueType}; 
+		TypeInformation<?>[] stepFunctionTypesWithoutWeight = {(BasicTypeInfo<?>)keyType, (BasicTypeInfo<?>)keyType, valueType}; 
 		TypeInformation<Tuple3<K, K, V>> stepFunctionInputTypeWithoutWeight = new TupleTypeInfo<Tuple3<K,K,V>>(stepFunctionTypesWithoutWeight);
 		
 		TypeInformation<E> weightType = null;
@@ -163,7 +164,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 			weightType = ((TupleTypeInfo<?>) dependenciesWithWeight.getType()).getTypeAt(2);
 		}
 		
-		TypeInformation<?>[] stepFunctionTypesWithWeight = {(BasicTypeInfo<?>)keyType, (BasicTypeInfo<?>)keyType, (BasicTypeInfo<?>)valueType, (BasicTypeInfo<?>)weightType};
+		TypeInformation<?>[] stepFunctionTypesWithWeight = {(BasicTypeInfo<?>)keyType, (BasicTypeInfo<?>)keyType, valueType, (BasicTypeInfo<?>)weightType};
 		TypeInformation<Tuple4<K, K, V, E>> stepFunctionInputTypeWithWeight = new TupleTypeInfo<Tuple4<K,K,V,E>>(stepFunctionTypesWithWeight);
 		
 
@@ -187,6 +188,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		DataSet<Tuple2<K, V>> depResult = doDependencyIteration(name, bulkResult, tupleKeyType, dependencyType, 
 				stepFunctionInputTypeWithWeight, stepFunctionInputTypeWithoutWeight, parameterTypeInfo);
 		return depResult;
+		
 	}
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
