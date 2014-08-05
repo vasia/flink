@@ -9,6 +9,7 @@ import org.apache.flink.api.java.aggregation.Aggregations;
 import org.apache.flink.api.java.functions.FilterFunction;
 import org.apache.flink.api.java.functions.GroupReduceFunction;
 import org.apache.flink.api.java.functions.MapFunction;
+import org.apache.flink.api.java.functions.ReduceFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
@@ -68,8 +69,20 @@ public class FixpointCommunityDetection implements ProgramDescription {
 			// <vertexID, candidateLabel, labelScore>
 			DataSet<Tuple3<Long, Long, Double>> candidateLabels = flattenedNeighborWithLabel.groupBy(0, 2).reduceGroup(new ScoreLabels());
 			// <vertexID, newLabel>
-			DataSet<Tuple2<Long, Long>> verticesWithNewLabels = candidateLabels.groupBy(0).aggregate(Aggregations.MAX, 2)
-					.project(0, 1).types(Long.class, Long.class);
+			DataSet<Tuple2<Long, Long>> verticesWithNewLabels = candidateLabels.groupBy(0)
+					.reduce(new ReduceFunction<Tuple3<Long, Long, Double>>() {
+						
+						@Override
+						public Tuple3<Long, Long, Double> reduce(Tuple3<Long, Long, Double> value1,
+								Tuple3<Long, Long, Double> value2) throws Exception {
+							if (value1.f2 > value2.f2) {
+								return value1;
+							}
+							else {
+								return value2;
+							}
+						}
+					}).project(0, 1).types(Long.class, Long.class); 
 					
 			DataSet<Tuple2<Long, Tuple2<Long, Double>>> verticesWithNewScoredLabels = 
 					verticesWithNewLabels.join(flattenedNeighborWithLabel).where(0).equalTo(0)
@@ -113,7 +126,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		Tuple3<Long, Long, Double>> {
 
 		private static final long serialVersionUID = 1L;
-		private double scoreSum; 
+		private double scoreSum = 0.0; 
 		private Tuple5<Long, Long, Long, Double, Double> current;
 		private Tuple3<Long, Long, Double> result = new Tuple3<Long, Long, Double>();
 
@@ -129,7 +142,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 			
 			while (values.hasNext()) {
 				current = values.next();
-				// TODO: multiply with degree(vertex)^m
+				// alternatively also multiply with degree(vertex)^m
 				scoreSum += current.f3 * current.f4;
 			}
 			result.setField(scoreSum, 2);
