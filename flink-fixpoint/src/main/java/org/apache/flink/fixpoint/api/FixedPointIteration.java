@@ -42,7 +42,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	private final StepFunction<K, V, E> stepFunction;
 	private final int maxIterations;
 	private String name;
-	private String execMode = "COST_MODEL";	// default value
+	private static String execMode = "COST_MODEL";	// default value
 	
 	private static final String UPDATED_ELEMENTS_AGGR = "updated.elements.aggr";
 	private static int iterationsElapsed;
@@ -220,8 +220,10 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		iteration.name(name);
 		
 		// register convergence criterion
-		iteration.registerAggregationConvergenceCriterion(UPDATED_ELEMENTS_AGGR, new LongSumAggregator(), 
-				new UpdatedElementsCostModelConvergence(numberOfParameters, avgNodeDegree));
+		if (execMode.equals("COST_MODEL")) {
+			iteration.registerAggregationConvergenceCriterion(UPDATED_ELEMENTS_AGGR, new LongSumAggregator(), 
+					new UpdatedElementsCostModelConvergence(numberOfParameters, avgNodeDegree));
+		}
 		
 		DataSet<Tuple2<K, V>> parametersWithNewValues;
 		
@@ -233,12 +235,16 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		}
 				
 		// compare with previous values
-		FlatMapOperator<?, Tuple2<K, V>> updatedParameters = parametersWithNewValues.join(iteration)
-												.where(0).equalTo(0)
-												.flatMap(new AggregateAndEmitUpdatedValue(parameterTypeInfo));
-		// close the iteration
-		DataSet<Tuple2<K, V>> bulkResult = iteration.closeWith(updatedParameters);
-		return bulkResult;
+		if (execMode.equals("COST_MODEL")) {
+			FlatMapOperator<?, Tuple2<K, V>> updatedParameters = parametersWithNewValues.join(iteration)
+													.where(0).equalTo(0)
+													.flatMap(new AggregateAndEmitUpdatedValue(parameterTypeInfo));
+			// close the iteration
+			return iteration.closeWith(updatedParameters);
+		}
+		else {
+			return iteration.closeWith(parametersWithNewValues);
+		}
 	}
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -540,23 +546,27 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		
 		@Override
 		public void open(Configuration conf) {
-			updatedElementsAggr = getIterationRuntimeContext().getIterationAggregator(UPDATED_ELEMENTS_AGGR); 
-			iterationsElapsed = getIterationRuntimeContext().getSuperstepNumber();
-			if (iterationsElapsed > 1) {
-				LongValue updatedElementsValue = getIterationRuntimeContext().getPreviousIterationAggregate(UPDATED_ELEMENTS_AGGR);
-				bulkUpdatedElements = updatedElementsValue.getValue();
-				System.out.println("Updated elements: " +bulkUpdatedElements);
+			if (execMode.equals("COST_MODEL")) {
+				updatedElementsAggr = getIterationRuntimeContext().getIterationAggregator(UPDATED_ELEMENTS_AGGR); 
+				iterationsElapsed = getIterationRuntimeContext().getSuperstepNumber();
+				if (iterationsElapsed > 1) {
+					LongValue updatedElementsValue = getIterationRuntimeContext().getPreviousIterationAggregate(UPDATED_ELEMENTS_AGGR);
+					bulkUpdatedElements = updatedElementsValue.getValue();
+					System.out.println("Updated elements: " +bulkUpdatedElements);
+				}
+				System.out.println("Bulk Iteration " + iterationsElapsed);
 			}
-			System.out.println("Bulk Iteration " + iterationsElapsed);
 		}
 
 		@Override
 		public void flatMap(Tuple2<Tuple2<K, V>, Tuple2<K, V>> value,
 				Collector<Tuple2<K, V>> out) throws Exception {
 			
-			// count changed elements
-			if (!(value.f0.equals(value.f1))) {
-				updatedElementsAggr.aggregate(1);
+			if (execMode.equals("COST_MODEL")) {
+				// count changed elements
+				if (!(value.f0.equals(value.f1))) {
+					updatedElementsAggr.aggregate(1);
+				}
 			}
 			// emit the updated value
 			out.collect(value.f0);
@@ -633,12 +643,6 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		{
 			this.resultType = resultType;
 		}
-		
-//		@Override
-//		public void open(Configuration conf) {
-//			int superstep = getIterationRuntimeContext().getSuperstepNumber();
-//			System.out.println("Emitting updated values, at superstep " + superstep);
-//		}
 	
 		@Override
 		public void flatMap(Tuple2<Tuple2<K, V>, Tuple2<K, V>> value,
@@ -670,12 +674,6 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 			this.resultType = resultType;
 			this.stepFunction = stepFunction;
 		}
-		
-	//	@Override
-	//	public void open(Configuration conf) {
-	//		int superstep = getIterationRuntimeContext().getSuperstepNumber();
-	//		System.out.println("Emitting updated values, at superstep " + superstep);
-	//	}
 	
 		@Override
 		public void flatMap(Tuple2<Tuple2<K, V>, Tuple2<K, V>> value,
