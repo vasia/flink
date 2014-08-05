@@ -200,7 +200,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 			// TODO: check whether there are iterations left
 			
 			/**
-			 * TODO: If there are no elements changed during t			break;he last bulk iteration,
+			 * TODO: If there are no elements changed during the last bulk iteration,
 			 * we shouldn't execute any dependency iteration
 			 */
 				
@@ -299,11 +299,55 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		return incrementalResult;
 	}
 	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private DataSet<Tuple2<K, V>> doDeltaIteration(String name, TypeInformation<Tuple4<K, K, V, E>> stepFunctionInputTypeWithWeight, 
 			TypeInformation<Tuple3<K, K, V>> stepFunctionInputTypeWithoutWeight, 
 			TypeInformation<Tuple2<K, V>> parameterTypeInfo) {
 		
-		return null;
+		/** 
+		 * start with one bulk iteration
+		 * to initialize the delta input
+		 */
+		IterativeDataSet<Tuple2<K, V>> bulkIteration = parametersInput.iterate(1);
+		bulkIteration.name(name);
+		
+		DataSet<Tuple2<K, V>> parametersWithNewValues;
+		
+		if (dependenciesWithWeight != null) {
+			parametersWithNewValues = getBulkResultWithWeight(bulkIteration, stepFunctionInputTypeWithWeight);
+		}
+		else {
+			parametersWithNewValues = getBulkResultWithoutWeight(bulkIteration, stepFunctionInputTypeWithoutWeight);
+		}
+				
+		// close the bulk iteration
+		DataSet<Tuple2<K, V>> bulkIntermediate = bulkIteration.closeWith(parametersWithNewValues);
+		
+		/**
+		 *  set up the delta iteration operator
+		 */
+		// initial workset
+		DataSet<Tuple2<K, V>> deltasInput = stepFunction.deltaInput(parametersInput, bulkIntermediate);
+		
+		DeltaIteration<Tuple2<K, V>, Tuple2<K, V>> iteration = parametersInput.iterateDelta(deltasInput, maxIterations - 1, 0);
+		iteration.name(name);
+		
+		DataSet<Tuple2<K, V>> deltaParametersWithNewValues;
+		
+		if (dependenciesWithWeight != null) {
+			deltaParametersWithNewValues = getDeltaResultWithWeight(iteration, stepFunctionInputTypeWithWeight);
+		}
+		else {
+			deltaParametersWithNewValues = getDeltaResultWithoutWeight(iteration, stepFunctionInputTypeWithoutWeight);
+		}
+				
+		// compare with previous values
+		FlatMapOperator<?, Tuple2<K, V>> deltaUpdatedParameters = deltaParametersWithNewValues.join(iteration.getSolutionSet())
+												.where(0).equalTo(0)
+												.flatMap(new EmitDeltaUpdatedValues(parameterTypeInfo, this.stepFunction));
+		// close the iteration
+		DataSet<Tuple2<K, V>> deltaResult = iteration.closeWith(deltaUpdatedParameters, deltaParametersWithNewValues);
+		return deltaResult;
 	}
 
 
@@ -365,6 +409,25 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private DataSet<Tuple2<K, V>> getIncrementalResultWithWeight(DeltaIteration<Tuple2<K, V>, Tuple2<K, V>> iteration, 
+			TypeInformation<Tuple4<K, K, V, E>> stepFunctionInputType) {
+		
+		// produce the DataSet containing each vertex with the in-neighbor and their value		
+		FlatMapOperator<?, Tuple4<K, K, V, E>> parametersWithNeighborValues = 
+				iteration.getWorkset().join(dependenciesWithWeight)
+				.where(0).equalTo(0).flatMap(new ProjectStepFunctionInput(stepFunctionInputType));
+		
+		// result of the step function
+		return this.stepFunction.updateState(parametersWithNeighborValues);
+	}
+	
+	private DataSet<Tuple2<K, V>> getDeltaResultWithoutWeight(
+			DeltaIteration<Tuple2<K, V>, Tuple2<K, V>> iteration, TypeInformation<Tuple3<K, K, V>> stepFunctionInputType) {
+		// TODO make StepFunction work for dependencies without weight
+		return null;
+	}
+
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private DataSet<Tuple2<K, V>> getDeltaResultWithWeight(DeltaIteration<Tuple2<K, V>, Tuple2<K, V>> iteration, 
 			TypeInformation<Tuple4<K, K, V, E>> stepFunctionInputType) {
 		
 		// produce the DataSet containing each vertex with the in-neighbor and their value		
@@ -588,8 +651,6 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	
 	}
 
-	//TODO: provide a way to define a delta as a measure of how much of a change is considered an updated value?
-	// e.g. in PageRank
 	private static final class EmitOnlyUpdatedValues<K, V> extends FlatMapFunction
 		<Tuple2<Tuple2<K, V>, Tuple2<K, V>>, Tuple2<K, V>> 
 		implements ResultTypeQueryable<Tuple2<K, V>> {
@@ -623,6 +684,45 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 			return this.resultType;
 		}
 
+	}
+
+	private static final class EmitDeltaUpdatedValues<K, V> extends FlatMapFunction
+		<Tuple2<Tuple2<K, V>, Tuple2<K, V>>, Tuple2<K, V>> 
+		implements ResultTypeQueryable<Tuple2<K, V>> {
+
+		private static final long serialVersionUID = 1L;
+		private transient TypeInformation<Tuple2<K, V>> resultType;
+		private final StepFunction<K, V, ?> stepFunction;
+		
+		private EmitDeltaUpdatedValues(TypeInformation<Tuple2<K, V>> resultType, StepFunction<K, V, ?> stepFunction)
+		{
+			this.resultType = resultType;
+			this.stepFunction = stepFunction;
+		}
+		
+	//	@Override
+	//	public void open(Configuration conf) {
+	//		int superstep = getIterationRuntimeContext().getSuperstepNumber();
+	//		System.out.println("Emitting updated values, at superstep " + superstep);
+	//	}
+	
+		@Override
+		public void flatMap(Tuple2<Tuple2<K, V>, Tuple2<K, V>> value,
+				Collector<Tuple2<K, V>> out) throws Exception {
+			
+			Tuple2<K, V> newValue = stepFunction.deltaUpdate(value.f1, value.f0);
+			
+			if (!(stepFunction.deltaEquals(newValue, value.f1))) {
+				// emit updated values only
+				out.collect(value.f0);
+			}
+		}
+		
+		@Override
+		public TypeInformation<Tuple2<K, V>> getProducedType() {
+			return this.resultType;
+		}
+	
 	}
 
 }

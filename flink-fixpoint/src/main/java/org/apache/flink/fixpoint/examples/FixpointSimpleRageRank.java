@@ -51,6 +51,32 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 			return newRanks;
 		}
 		
+		@Override 
+		public DataSet<Tuple2<Long, Double>> deltaInput(DataSet<Tuple2<Long, Double>> bulkInput, 
+				DataSet<Tuple2<Long, Double>> resultAfterBulk) {
+					
+			DataSet<Tuple2<Long, Double>> initialDeltas = bulkInput.join(resultAfterBulk).where(0).equalTo(0)
+					.map(new MapFunction<Tuple2<Tuple2<Long, Double>,Tuple2<Long, Double>>, Tuple2<Long, Double>>() {
+
+						public Tuple2<Long, Double> map(Tuple2<Tuple2<Long, Double>, Tuple2<Long, Double>> value)
+								throws Exception {
+							return new Tuple2<Long, Double>(value.f0.f0, value.f1.f1 - value.f0.f1);
+						}
+					});
+			
+			return initialDeltas;
+		}
+		
+		@Override
+		public Tuple2<Long, Double> deltaUpdate(Tuple2<Long, Double> previousValue,	Tuple2<Long, Double> deltaValue) {
+			return new Tuple2<Long, Double>(previousValue.f0, previousValue.f1 + deltaValue.f1);
+		}
+		
+		@Override
+		public boolean deltaEquals(Tuple2<Long, Double> previousValue,	Tuple2<Long, Double> deltaValue) {	
+			return Math.abs(previousValue.f1 - deltaValue.f1) < 0.0001;
+		}
+		
 	}
 	
 	public static final class PartialRankMapper extends MapFunction<Tuple4<Long, Long, Double, Long>, 
