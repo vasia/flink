@@ -1,14 +1,11 @@
 package org.apache.flink.fixpoint.api;
 
-import java.util.Iterator;
-
 import org.apache.commons.lang3.Validate;
 import org.apache.flink.api.common.aggregators.LongSumAggregator;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.DeltaIteration;
 import org.apache.flink.api.java.IterativeDataSet;
 import org.apache.flink.api.java.functions.FlatMapFunction;
-import org.apache.flink.api.java.functions.GroupReduceFunction;
 import org.apache.flink.api.java.operators.CustomUnaryOperation;
 import org.apache.flink.api.java.operators.FlatMapOperator;
 import org.apache.flink.api.java.tuple.Tuple1;
@@ -387,9 +384,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		FlatMapOperator<?, Tuple1<K>> candidates = depIteration.getWorkset().join(dependenciesWithWeight)
 																.where(0).equalTo(0).flatMap(new CandidateIDs(tupleKeyType));
 		
-		DataSet<Tuple1<K>> grouped = candidates.groupBy(0).reduceGroup(new RemoveDuplicatesReduce(tupleKeyType));
-		
-		DataSet<Tuple3<K, K, E>> candidatesDependencies = grouped.join(dependenciesWithWeight).where(0).equalTo(1)
+		DataSet<Tuple3<K, K, E>> candidatesDependencies = candidates.distinct().join(dependenciesWithWeight).where(0).equalTo(1)
 																	.flatMap(new CandidatesDependencies(dependencyType));
 		
 		// produce the DataSet containing each parameter with the in-neighbor and their value		
@@ -599,30 +594,6 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 			return this.resultType;
 		}
 
-	}
-
-	private static final class RemoveDuplicatesReduce<K> extends GroupReduceFunction<Tuple1<K>, Tuple1<K>> 
-		implements ResultTypeQueryable<Tuple1<K>> {
-		
-		private static final long serialVersionUID = 1L;
-		private transient TypeInformation<Tuple1<K>> resultType;
-		
-		private RemoveDuplicatesReduce(TypeInformation<Tuple1<K>> resultType)
-		{
-			this.resultType = resultType;
-		}
-	
-		@Override
-		public void reduce(Iterator<Tuple1<K>> values, Collector<Tuple1<K>> out)
-				throws Exception {
-			out.collect(values.next());
-		}
-		
-		@Override
-		public TypeInformation<Tuple1<K>> getProducedType() {
-			return this.resultType;
-		}
-	
 	}
 	
 	private static final class CandidatesDependencies<K, E> extends FlatMapFunction
