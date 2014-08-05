@@ -217,6 +217,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	private DataSet<Tuple2<K, V>> doBulkIteration(String name, TypeInformation<Tuple4<K, K, V, E>> stepFunctionInputTypeWithWeight, 
 			TypeInformation<Tuple3<K, K, V>> stepFunctionInputTypeWithoutWeight, 
 			TypeInformation<Tuple2<K, V>> parameterTypeInfo) {
+		
 		// set up the iteration operator
 		IterativeDataSet<Tuple2<K, V>> iteration = parametersInput.iterate(maxIterations);
 		iteration.name(name);
@@ -271,11 +272,31 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		return result;
 	}
 	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	private DataSet<Tuple2<K, V>> doIncrementalIteration(String name, TypeInformation<Tuple4<K, K, V, E>> stepFunctionInputTypeWithWeight, 
 			TypeInformation<Tuple3<K, K, V>> stepFunctionInputTypeWithoutWeight, 
 			TypeInformation<Tuple2<K, V>> parameterTypeInfo) {
 		
-		return null;
+		// set up the iteration operator
+		DeltaIteration<Tuple2<K, V>, Tuple2<K, V>> iteration = parametersInput.iterateDelta(parametersInput, maxIterations, 0);
+		iteration.name(name);
+		
+		DataSet<Tuple2<K, V>> parametersWithNewValues;
+		
+		if (dependenciesWithWeight != null) {
+			parametersWithNewValues = getIncrementalResultWithWeight(iteration, stepFunctionInputTypeWithWeight);
+		}
+		else {
+			parametersWithNewValues = getIncrementalResultWithoutWeight(iteration, stepFunctionInputTypeWithoutWeight);
+		}
+				
+		// compare with previous values
+		FlatMapOperator<?, Tuple2<K, V>> updatedParameters = parametersWithNewValues.join(iteration.getSolutionSet())
+												.where(0).equalTo(0)
+												.flatMap(new EmitOnlyUpdatedValues(parameterTypeInfo));
+		// close the iteration
+		DataSet<Tuple2<K, V>> incrementalResult = iteration.closeWith(updatedParameters, updatedParameters);
+		return incrementalResult;
 	}
 	
 	private DataSet<Tuple2<K, V>> doDeltaIteration(String name, TypeInformation<Tuple4<K, K, V, E>> stepFunctionInputTypeWithWeight, 
@@ -330,6 +351,25 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		// produce the DataSet containing each parameter with the in-neighbor and their value		
 		FlatMapOperator<?, Tuple4<K, K, V, E>> parametersWithNeighborValues = 
 				depIteration.getSolutionSet().join(candidatesDependencies)
+				.where(0).equalTo(0).flatMap(new ProjectStepFunctionInput(stepFunctionInputType));
+		
+		// result of the step function
+		return this.stepFunction.updateState(parametersWithNeighborValues);
+	}
+	
+	private DataSet<Tuple2<K, V>> getIncrementalResultWithoutWeight(
+			DeltaIteration<Tuple2<K, V>, Tuple2<K, V>> iteration, TypeInformation<Tuple3<K, K, V>> stepFunctionInputType) {
+		// TODO make StepFunction work for dependencies without weight
+		return null;
+	}
+
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private DataSet<Tuple2<K, V>> getIncrementalResultWithWeight(DeltaIteration<Tuple2<K, V>, Tuple2<K, V>> iteration, 
+			TypeInformation<Tuple4<K, K, V, E>> stepFunctionInputType) {
+		
+		// produce the DataSet containing each vertex with the in-neighbor and their value		
+		FlatMapOperator<?, Tuple4<K, K, V, E>> parametersWithNeighborValues = 
+				iteration.getWorkset().join(dependenciesWithWeight)
 				.where(0).equalTo(0).flatMap(new ProjectStepFunctionInput(stepFunctionInputType));
 		
 		// result of the step function
@@ -562,17 +602,16 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 			this.resultType = resultType;
 		}
 		
-		@Override
-		public void open(Configuration conf) {
-			int superstep = getIterationRuntimeContext().getSuperstepNumber();
-			System.out.println("Dependency Iteration " + superstep);
-		}
+//		@Override
+//		public void open(Configuration conf) {
+//			int superstep = getIterationRuntimeContext().getSuperstepNumber();
+//			System.out.println("Emitting updated values, at superstep " + superstep);
+//		}
 	
 		@Override
 		public void flatMap(Tuple2<Tuple2<K, V>, Tuple2<K, V>> value,
 				Collector<Tuple2<K, V>> out) throws Exception {
 			
-			// count changed elements
 			if (!(value.f0.equals(value.f1))) {
 				// emit updated values only
 				out.collect(value.f0);
