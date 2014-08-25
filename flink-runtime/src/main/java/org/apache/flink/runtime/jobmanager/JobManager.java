@@ -44,6 +44,7 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.flink.api.common.accumulators.Accumulator;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.GlobalConfiguration;
@@ -249,7 +250,7 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 	}
 
 	public void shutdown() {
-
+		LOG.debug("JobManager shutdown requested");
 		if (!this.isShutdownInProgress.compareAndSet(false, true)) {
 			return;
 		}
@@ -287,6 +288,14 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 		// Finally, shut down the scheduler
 		if (this.scheduler != null) {
 			this.scheduler.shutdown();
+		}
+		
+		if(server != null) {
+			try {
+				server.stop();
+			} catch (Exception e) {
+				LOG.error("Error while shutting down the JobManager's webserver", e);
+			}
 		}
 
 		this.isShutDown = true;
@@ -1179,8 +1188,8 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 		return this.archive;
 	}
 
-	public int getNumberOfTaskTrackers() {
-		return this.instanceManager.getNumberOfTaskTrackers();
+	public int getNumberOfTaskManagers() {
+		return this.instanceManager.getNumberOfTaskManagers();
 	}
 	
 	public Map<InstanceConnectionInfo, Instance> getInstances() {
@@ -1189,12 +1198,15 @@ public class JobManager implements DeploymentManager, ExtendedManagementProtocol
 
 	@Override
 	public void reportAccumulatorResult(AccumulatorEvent accumulatorEvent) throws IOException {
-		this.accumulatorManager.processIncomingAccumulators(accumulatorEvent.getJobID(),
-				accumulatorEvent.getAccumulators());
+		this.accumulatorManager.processIncomingAccumulators(accumulatorEvent.getJobID(), accumulatorEvent.getAccumulators(LibraryCacheManager.getClassLoader(accumulatorEvent.getJobID())));
 	}
 
 	@Override
 	public AccumulatorEvent getAccumulatorResults(JobID jobID) throws IOException {
-		return new AccumulatorEvent(jobID, this.accumulatorManager.getJobAccumulators(jobID), false);
+		return new AccumulatorEvent(jobID, this.accumulatorManager.getJobAccumulators(jobID));
+	}
+	
+	public Map<String, Accumulator<?, ?>> getAccumulators(JobID jobID) {
+		return this.accumulatorManager.getJobAccumulators(jobID);
 	}
 }

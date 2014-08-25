@@ -16,7 +16,6 @@
  * limitations under the License.
  */
 
-
 package org.apache.flink.compiler;
 
 import java.util.ArrayDeque;
@@ -37,7 +36,6 @@ import org.apache.flink.api.common.operators.Operator;
 import org.apache.flink.api.common.operators.Union;
 import org.apache.flink.api.common.operators.base.BulkIterationBase;
 import org.apache.flink.api.common.operators.base.CoGroupOperatorBase;
-import org.apache.flink.api.common.operators.base.CollectorMapOperatorBase;
 import org.apache.flink.api.common.operators.base.CrossOperatorBase;
 import org.apache.flink.api.common.operators.base.DeltaIterationBase;
 import org.apache.flink.api.common.operators.base.FilterOperatorBase;
@@ -47,6 +45,7 @@ import org.apache.flink.api.common.operators.base.GenericDataSourceBase;
 import org.apache.flink.api.common.operators.base.GroupReduceOperatorBase;
 import org.apache.flink.api.common.operators.base.JoinOperatorBase;
 import org.apache.flink.api.common.operators.base.MapOperatorBase;
+import org.apache.flink.api.common.operators.base.MapPartitionOperatorBase;
 import org.apache.flink.api.common.operators.base.ReduceOperatorBase;
 import org.apache.flink.api.common.operators.base.BulkIterationBase.PartialSolutionPlaceHolder;
 import org.apache.flink.api.common.operators.base.DeltaIterationBase.SolutionSetPlaceHolder;
@@ -66,6 +65,7 @@ import org.apache.flink.compiler.dag.FlatMapNode;
 import org.apache.flink.compiler.dag.GroupReduceNode;
 import org.apache.flink.compiler.dag.IterationNode;
 import org.apache.flink.compiler.dag.MapNode;
+import org.apache.flink.compiler.dag.MapPartitionNode;
 import org.apache.flink.compiler.dag.MatchNode;
 import org.apache.flink.compiler.dag.OptimizerNode;
 import org.apache.flink.compiler.dag.PactConnection;
@@ -648,6 +648,7 @@ public class PactCompiler {
 			this.forceDOP = forceDOP;
 		}
 
+		@SuppressWarnings("deprecation")
 		@Override
 		public boolean preVisit(Operator<?> c) {
 			// check if we have been here before
@@ -671,8 +672,11 @@ public class PactCompiler {
 			else if (c instanceof MapOperatorBase) {
 				n = new MapNode((MapOperatorBase<?, ?, ?>) c);
 			}
-			else if (c instanceof CollectorMapOperatorBase) {
-				n = new CollectorMapNode((CollectorMapOperatorBase<?, ?, ?>) c);
+			else if (c instanceof MapPartitionOperatorBase) {
+				n = new MapPartitionNode((MapPartitionOperatorBase<?, ?, ?>) c);
+			}
+			else if (c instanceof org.apache.flink.api.common.operators.base.CollectorMapOperatorBase) {
+				n = new CollectorMapNode((org.apache.flink.api.common.operators.base.CollectorMapOperatorBase<?, ?, ?>) c);
 			}
 			else if (c instanceof FlatMapOperatorBase) {
 				n = new FlatMapNode((FlatMapOperatorBase<?, ?, ?>) c);

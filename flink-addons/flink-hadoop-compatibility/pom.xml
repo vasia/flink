@@ -26,7 +26,7 @@ under the License.
 	<parent>
 		<artifactId>flink-addons</artifactId>
 		<groupId>org.apache.flink</groupId>
-		<version>0.6-incubating-SNAPSHOT</version>
+		<version>0.7-incubating-SNAPSHOT</version>
 		<relativePath>..</relativePath>
 	</parent>
 
@@ -75,6 +75,29 @@ under the License.
 					<groupId>org.apache.hadoop</groupId>
 					<artifactId>hadoop-mapreduce-client-core</artifactId>
 					<version>${hadoop.version}</version>
+				</dependency>
+			</dependencies>
+		</profile>
+			<profile>
+			<id>cdh4</id>
+			<!-- 
+				See flink-runtime/pom.xml for details
+			-->
+			<dependencies>
+				<dependency>
+					<groupId>org.apache.hadoop</groupId>
+					<artifactId>hadoop-mapreduce-client-core</artifactId>
+					<version>${hadoop.cdh4.hadoop.version}</version>
+				</dependency>
+				<dependency>
+					<groupId>org.apache.hadoop</groupId>
+					<artifactId>hadoop-hdfs</artifactId>
+					<version>${hadoop.cdh4.hadoop.version}</version>
+				</dependency>
+				<dependency>
+					<groupId>org.apache.hadoop</groupId>
+					<artifactId>hadoop-common</artifactId>
+					<version>${hadoop.cdh4.hadoop.version}</version>
 				</dependency>
 			</dependencies>
 		</profile>

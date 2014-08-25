@@ -25,7 +25,7 @@
 # 2. Nothing
 # 3. Deploy to s3 (old hadoop)
 # 4. deploy to sonatype (yarn hadoop) (this build will also generate specific poms for yarn hadoop)
-# 5. Deploy Javadocs.
+# 5. Nothing (formerly: Deploy Javadocs.)
 # 6. deploy to s3 (yarn hadoop)
 
 # Changes (since travis changed the id assignment)
@@ -42,9 +42,9 @@ function getVersion() {
 	here="`dirname \"$0\"`"              # relative
 	here="`( cd \"$here\" && pwd )`"  # absolutized and normalized
 	if [ -z "$here" ] ; then
-	  # error; for some reason, the path is not accessible
-	  # to the script (e.g. permissions re-evaled after suid)
-	  exit 1  # fail
+		# error; for some reason, the path is not accessible
+		# to the script (e.g. permissions re-evaled after suid)
+		exit 1  # fail
 	fi
 	flink_home="`dirname \"$here\"`"
 	cd $flink_home
@@ -54,7 +54,7 @@ function getVersion() {
 # this will take a while
 CURRENT_FLINK_VERSION=`getVersion`
 if [[ "$CURRENT_FLINK_VERSION" == *-SNAPSHOT ]]; then
-	CURRENT_FLINK_VERSION_YARN=${CURRENT_FLINK_VERSION/-SNAPSHOT/-hadoop2-SNAPSHOT}
+	CURRENT_FLINK_VERSION_YARN=${CURRENT_FLINK_VERSION/-incubating-SNAPSHOT/-hadoop2-incubating-SNAPSHOT}
 else
 	CURRENT_FLINK_VERSION_YARN="$CURRENT_FLINK_VERSION-hadoop2"
 fi
@@ -72,7 +72,7 @@ if [[ $TRAVIS_PULL_REQUEST == "false" ]] ; then
 
 	if [[ $TRAVIS_JOB_NUMBER == *1 ]] && [[ $TRAVIS_PULL_REQUEST == "false" ]] && [[ $CURRENT_FLINK_VERSION == *SNAPSHOT* ]] ; then 
 		# Deploy regular hadoop v1 to maven
-		mvn -DskipTests -Drat.ignoreErrors=true deploy --settings deploysettings.xml; 
+		mvn -Pdocs-and-source -DskipTests -Drat.ignoreErrors=true deploy --settings deploysettings.xml; 
 	fi
 
 	if [[ $TRAVIS_JOB_NUMBER == *4 ]] && [[ $TRAVIS_PULL_REQUEST == "false" ]] && [[ $CURRENT_FLINK_VERSION == *SNAPSHOT* ]] ; then 
@@ -82,31 +82,31 @@ if [[ $TRAVIS_PULL_REQUEST == "false" ]] ; then
 		# all these tweaks assume a yarn build.
 		# performance tweaks here: no "clean deploy" so that actually nothing is being rebuild (could cause wrong poms inside the jars?)
 		# skip tests (they were running already)
-		# skip javadocs generation (already generated)
-		mvn -B -f pom.hadoop2.xml -DskipTests -Drat.ignoreErrors=true -Dmaven.javadoc.skip=true deploy --settings deploysettings.xml; 
+		mvn -B -f pom.hadoop2.xml -DskipTests -Pdocs-and-source -Drat.ignoreErrors=true deploy --settings deploysettings.xml; 
 	fi
 
-	if [[ $TRAVIS_JOB_NUMBER == *5 ]] && [[ $TRAVIS_PULL_REQUEST == "false" ]] && [[ $CURRENT_FLINK_VERSION == *SNAPSHOT* ]] ; then 
-		cd flink-java
-		mvn javadoc:javadoc
-		cd target
-		cd apidocs
-		git init
-		git config --global user.email "metzgerr@web.de"
-		git config --global user.name "Travis-CI"
-		git add *
-		git commit -am "Javadocs from '$(date)'"
-		git config credential.helper "store --file=.git/credentials"
-		echo "https://$JAVADOCS_DEPLOY:@github.com" > .git/credentials
-		git push -f https://github.com/stratosphere-javadocs/stratosphere-javadocs.github.io.git master:master
-		rm .git/credentials
-		cd ..
-		cd ..
-		cd ..
-	fi
+	# The block below took care of deploying javadoc to github.io. We now host the javadocs on the website.
+	# if [[ $TRAVIS_JOB_NUMBER == *5 ]] && [[ $TRAVIS_PULL_REQUEST == "false" ]] && [[ $CURRENT_FLINK_VERSION == *SNAPSHOT* ]] ; then 
+	# 	cd flink-java
+	# 	mvn javadoc:javadoc
+	# 	cd target
+	# 	cd apidocs
+	# 	git init
+	# 	git config --global user.email "metzgerr@web.de"
+	# 	git config --global user.name "Travis-CI"
+	# 	git add *
+	# 	git commit -am "Javadocs from '$(date)'"
+	# 	git config credential.helper "store --file=.git/credentials"
+	# 	echo "https://$JAVADOCS_DEPLOY:@github.com" > .git/credentials
+	# 	git push -f https://github.com/stratosphere-javadocs/stratosphere-javadocs.github.io.git master:master
+	# 	rm .git/credentials
+	# 	cd ..
+	# 	cd ..
+	# 	cd ..
+	# fi
 
 	#
-	# Deploy binaries to DOPA
+	# Deploy binaries to S3
 	# The TRAVIS_JOB_NUMBER here is kinda hacked. 
 	# Currently, there are Builds 1-6. Build 1 is deploying to maven sonatype
 	# Build 2 has no special meaning, it is the openjdk7, hadoop 1.2.1 build
@@ -114,31 +114,27 @@ if [[ $TRAVIS_PULL_REQUEST == "false" ]] ; then
 	# Please be sure not to use Build 1 as it will always be the yarn build.
 	#
 
-	YARN_ARCHIVE=""
-	if [[ $TRAVIS_JOB_NUMBER == *6 ]] ; then 
-		#generate yarn poms & build for yarn.
-		# it is not required to generate poms for this build.
-		#./tools/generate_specific_pom.sh $CURRENT_FLINK_VERSION $CURRENT_FLINK_VERSION_YARN pom.xml
-		#mvn -B -DskipTests clean install
-		CURRENT_FLINK_VERSION=$CURRENT_FLINK_VERSION_YARN
-		YARN_ARCHIVE="flink-dist/target/*yarn.tar.gz"
-	fi
-	if [[ $TRAVIS_JOB_NUMBER == *3 ]] || [[ $TRAVIS_JOB_NUMBER == *6 ]] ; then 
-	#	cd flink-dist
-	#	mvn -B -DskipTests -Pdebian-package package
-	#	cd ..
+
+	if [[ $TRAVIS_JOB_NUMBER == *3 ]] || [[ $TRAVIS_JOB_NUMBER == *6 ]] ; then
 		echo "Uploading build to amazon s3. Job Number: $TRAVIS_JOB_NUMBER"
-		mkdir flink
-		cp -r flink-dist/target/flink-dist-*-bin/flink*/* flink/
-		tar -czf flink-$CURRENT_FLINK_VERSION.tgz flink
-		
-		# upload the two in parallel
+		HD="hadoop1"
+		# job nr 6 is YARN
 		if [[ $TRAVIS_JOB_NUMBER == *6 ]] ; then
 			# move to current dir
-			mv $YARN_ARCHIVE .
-			travis-artifacts upload --path *yarn.tar.gz --target-path / 
+			mkdir flink-$CURRENT_FLINK_VERSION
+			cp -r flink-dist/target/flink-*-bin/flink-yarn*/* flink-$CURRENT_FLINK_VERSION/
+			tar -czf flink-$CURRENT_FLINK_VERSION-bin-hadoop2-yarn.tgz flink-$CURRENT_FLINK_VERSION
+			travis-artifacts upload --path flink-$CURRENT_FLINK_VERSION-bin-hadoop2-yarn.tgz --target-path / 
+			HD="hadoop2"
+			rm -r flink-$CURRENT_FLINK_VERSION
 		fi
-		travis-artifacts upload --path flink-$CURRENT_FLINK_VERSION.tgz   --target-path / 
+
+		mkdir flink-$CURRENT_FLINK_VERSION
+		cp -r flink-dist/target/flink-*-bin/flink-$CURRENT_FLINK_VERSION*/* flink-$CURRENT_FLINK_VERSION/
+		tar -czf flink-$CURRENT_FLINK_VERSION-bin-$HD.tgz flink-$CURRENT_FLINK_VERSION
+		travis-artifacts upload --path flink-$CURRENT_FLINK_VERSION-bin-$HD.tgz   --target-path / 
+		echo "doing a ls -lisah:"
+		ls -lisah
 	fi
 
 fi # pull request check

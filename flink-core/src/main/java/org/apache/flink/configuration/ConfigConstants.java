@@ -117,14 +117,9 @@ public final class ConfigConstants {
 	public static final String TASK_MANAGER_NET_NUM_OUT_THREADS_KEY = "taskmanager.net.numOutThreads";
 
 	/**
-	 * The low water mark used in NettyConnectionManager for the Bootstrap.
+	 * The minimum time in ms a channel must be idle, before it will be closed.
 	 */
-	public static final String TASK_MANAGER_NET_NETTY_LOW_WATER_MARK = "taskmanager.net.nettyLowWaterMark";
-
-	/**
-	 * The high water mark used in NettyConnectionManager for the Bootstrap.
-	 */
-	public static final String TASK_MANAGER_NET_NETTY_HIGH_WATER_MARK = "taskmanager.net.nettyHighWaterMark";
+	public static final String TASK_MANAGER_NET_CLOSE_AFTER_IDLE_FOR_MS_KEY = "taskmanager.net.closeAfterIdleForMs";
 	
 	/**
 	 * Parameter for the interval in which the TaskManager sends the periodic heart beat messages
@@ -272,6 +267,10 @@ public final class ConfigConstants {
 	 */
 	public static final String WEB_ACCESS_FILE_KEY = "webclient.access";
 	
+	// ----------------------------- YARN Client ----------------------------
+	
+	public static final String YARN_AM_PRC_PORT = "yarn.am.rpc.port";
+	
 	// ----------------------------- Miscellaneous ----------------------------
 	
 	/**
@@ -354,16 +353,9 @@ public final class ConfigConstants {
 	public static final int DEFAULT_TASK_MANAGER_NET_NUM_OUT_THREADS = -1;
 
 	/**
-	 * Default low water mark used in NettyConnectionManager for the Bootstrap. If set to -1, NettyConnectionManager
-	 * will use half of the network buffer size as the low water mark.
+	 * The minimum time in ms a channel must be idle, before it will be closed.
 	 */
-	public static final int DEFAULT_TASK_MANAGER_NET_NETTY_LOW_WATER_MARK = -1;
-
-	/**
-	 * Default high water mark used in NettyConnectionManager for the Bootstrap. If set to -1, NettyConnectionManager
-	 * will use the network buffer size as the high water mark.
-	 */
-	public static final int DEFAULT_TASK_MANAGER_NET_NETTY_HIGH_WATER_MARK = -1;
+	public static final int DEFAULT_TASK_MANAGER_NET_CLOSE_AFTER_IDLE_FOR_MS = 10000;
 
 	/**
 	 * The default interval for TaskManager heart beats (2000 msecs).
@@ -401,7 +393,7 @@ public final class ConfigConstants {
 	public static final int DEFAULT_FS_STREAM_OPENING_TIMEOUT = 0;
 	
 	
-	// ------------------------ File System Bahavior ------------------------
+	// ------------------------ File System Behavior ------------------------
 
 	/**
 	 * The default behavior with respect to overwriting existing files (= not overwrite)
@@ -487,6 +479,11 @@ public final class ConfigConstants {
 	 * The default path to the file containing the list of access privileged users and passwords.
 	 */
 	public static final String DEFAULT_WEB_ACCESS_FILE_PATH = null;
+	
+	// ----------------------------- YARN ----------------------------
+	
+	public static final int DEFAULT_YARN_AM_RPC_PORT = 10245;
+	
 
 	// ----------------------------- LocalExecution ----------------------------
 
