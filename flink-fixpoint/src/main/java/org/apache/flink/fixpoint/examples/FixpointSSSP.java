@@ -7,7 +7,7 @@ import org.apache.flink.api.common.ProgramDescription;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.aggregation.Aggregations;
-import org.apache.flink.api.java.functions.FlatMapFunction;
+import org.apache.flink.api.java.functions.RichFlatMapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
@@ -54,7 +54,7 @@ public class FixpointSSSP implements ProgramDescription {
 		
 	}
 	
-	public static final class CandidateDistances extends FlatMapFunction<Tuple4<Long, Long, Long, Long>,
+	public static final class CandidateDistances extends RichFlatMapFunction<Tuple4<Long, Long, Long, Long>,
 			Tuple2<Long, Long>> {
 
 		private static final long serialVersionUID = 1L;

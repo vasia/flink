@@ -5,7 +5,7 @@ import org.apache.flink.api.common.aggregators.LongSumAggregator;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.DeltaIteration;
 import org.apache.flink.api.java.IterativeDataSet;
-import org.apache.flink.api.java.functions.FlatMapFunction;
+import org.apache.flink.api.java.functions.RichFlatMapFunction;
 import org.apache.flink.api.java.operators.CustomUnaryOperation;
 import org.apache.flink.api.java.operators.FlatMapOperator;
 import org.apache.flink.api.java.tuple.Tuple1;
@@ -499,7 +499,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		return name;
 	}
 	
-	private static final class ProjectStepFunctionInput<K, V, E> extends FlatMapFunction
+	private static final class ProjectStepFunctionInput<K, V, E> extends RichFlatMapFunction
 		<Tuple2<Tuple2<K, V>, Tuple3<K, K, E>>, Tuple4<K, K, V, E>> 
 		implements ResultTypeQueryable<Tuple4<K, K, V, E>> {
 		
@@ -531,8 +531,8 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	 * the dependencies set should contain a self-dependency for every parameter
 	 *
 	 */
-	private static final class AggregateAndEmitUpdatedValue<K, V> extends FlatMapFunction
-		<Tuple2<Tuple2<K, V>, Tuple2<K, V>>, Tuple2<K, V>> 
+	private static final class AggregateAndEmitUpdatedValue<K, V> extends RichFlatMapFunction
+		<Tuple2<Tuple2<K, V>, Tuple2<K, V>>, Tuple2<K, V>>
 		implements ResultTypeQueryable<Tuple2<K, V>> {
 		
 		private static final long serialVersionUID = 1L;
@@ -579,7 +579,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 
 	}
 	
-	private static final class CandidateIDs<K, V, E> extends FlatMapFunction
+	private static final class CandidateIDs<K, V, E> extends RichFlatMapFunction
 		<Tuple2<Tuple2<K, V>, Tuple3<K, K, E>>, Tuple1<K>> 
 		implements ResultTypeQueryable<Tuple1<K>> {
 		
@@ -606,7 +606,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 
 	}
 	
-	private static final class CandidatesDependencies<K, E> extends FlatMapFunction
+	private static final class CandidatesDependencies<K, E> extends RichFlatMapFunction
 		<Tuple2<Tuple1<K>, Tuple3<K, K, E>>, Tuple3<K, K, E>> 
 		implements ResultTypeQueryable<Tuple3<K, K, E>> {
 	
@@ -632,7 +632,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	
 	}
 
-	private static final class EmitOnlyUpdatedValues<K, V> extends FlatMapFunction
+	private static final class EmitOnlyUpdatedValues<K, V> extends RichFlatMapFunction
 		<Tuple2<Tuple2<K, V>, Tuple2<K, V>>, Tuple2<K, V>> 
 		implements ResultTypeQueryable<Tuple2<K, V>> {
 	
@@ -661,7 +661,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 
 	}
 
-	private static final class EmitDeltaUpdatedValues<K, V> extends FlatMapFunction
+	private static final class EmitDeltaUpdatedValues<K, V> extends RichFlatMapFunction
 		<Tuple2<Tuple2<K, V>, Tuple2<K, V>>, Tuple2<K, V>> 
 		implements ResultTypeQueryable<Tuple2<K, V>> {
 

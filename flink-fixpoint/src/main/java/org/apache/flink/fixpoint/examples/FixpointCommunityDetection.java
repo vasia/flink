@@ -3,13 +3,14 @@ package org.apache.flink.fixpoint.examples;
 import java.util.Iterator;
 
 import org.apache.flink.api.common.ProgramDescription;
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.aggregation.Aggregations;
-import org.apache.flink.api.java.functions.FilterFunction;
-import org.apache.flink.api.java.functions.GroupReduceFunction;
-import org.apache.flink.api.java.functions.MapFunction;
-import org.apache.flink.api.java.functions.ReduceFunction;
+import org.apache.flink.api.java.functions.RichGroupReduceFunction;
+import org.apache.flink.api.java.functions.RichReduceFunction;
+import org.apache.flink.api.java.functions.RichMapFunction;
+import org.apache.flink.api.java.functions.RichFilterFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
@@ -70,7 +71,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 			DataSet<Tuple3<Long, Long, Double>> candidateLabels = flattenedNeighborWithLabel.groupBy(0, 2).reduceGroup(new ScoreLabels());
 			// <vertexID, newLabel>
 			DataSet<Tuple2<Long, Long>> verticesWithNewLabels = candidateLabels.groupBy(0)
-					.reduce(new ReduceFunction<Tuple3<Long, Long, Double>>() {
+					.reduce(new RichReduceFunction<Tuple3<Long, Long, Double>>() {
 						
 						@Override
 						public Tuple3<Long, Long, Double> reduce(Tuple3<Long, Long, Double> value1,
@@ -87,7 +88,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 			DataSet<Tuple2<Long, Tuple2<Long, Double>>> verticesWithNewScoredLabels = 
 					verticesWithNewLabels.join(flattenedNeighborWithLabel).where(0).equalTo(0)
 					// <vertexID, newLabel, labelScore>
-					.filter(new FilterFunction<Tuple2<Tuple2<Long,Long>,Tuple5<Long,Long,Long,Double,Double>>>() {
+					.filter(new RichFilterFunction<Tuple2<Tuple2<Long,Long>,Tuple5<Long,Long,Long,Double,Double>>>() {
 						public boolean filter(
 								Tuple2<Tuple2<Long, Long>, Tuple5<Long, Long, Long, Double, Double>> value)
 								throws Exception {
@@ -109,7 +110,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		
 	}
 	
-	public static final class FlattenNeighbors extends MapFunction<Tuple4<Long, Long, Tuple2<Long, Double>, Double>, 
+	public static final class FlattenNeighbors extends RichMapFunction<Tuple4<Long, Long, Tuple2<Long, Double>, Double>, 
 		Tuple5<Long, Long, Long, Double, Double>> {
 		
 		private static final long serialVersionUID = 1L;
@@ -122,7 +123,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		}
 	}
 	
-	public static final class ScoreLabels extends GroupReduceFunction<Tuple5<Long, Long, Long, Double, Double>, 
+	public static final class ScoreLabels extends RichGroupReduceFunction<Tuple5<Long, Long, Long, Double, Double>, 
 		Tuple3<Long, Long, Double>> {
 
 		private static final long serialVersionUID = 1L;
@@ -132,16 +133,17 @@ public class FixpointCommunityDetection implements ProgramDescription {
 
 		@Override
 		public void reduce(
-				Iterator<Tuple5<Long, Long, Long, Double, Double>> values,
+				Iterable<Tuple5<Long, Long, Long, Double, Double>> values,
 				Collector<Tuple3<Long, Long, Double>> out) throws Exception {
 			
-			Tuple5<Long, Long, Long, Double, Double> first = values.next();
+			Iterator<Tuple5<Long, Long, Long, Double, Double>> valuesIt = values.iterator();
+			Tuple5<Long, Long, Long, Double, Double> first = valuesIt.next();
 			result.setField(first.f0, 0); // vertexID
 			result.setField(first.f2, 1); // label
 			scoreSum = first.f3 * first.f4; // score * edgeWeight
 			
-			while (values.hasNext()) {
-				current = values.next();
+			while (valuesIt.hasNext()) {
+				current = valuesIt.next();
 				// alternatively also multiply with degree(vertex)^m
 				scoreSum += current.f3 * current.f4;
 			}
@@ -151,7 +153,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		
 	}
 	
-	public static final class FlattenState extends MapFunction<Tuple2<Long, Tuple2<Long, Double>>, 
+	public static final class FlattenState extends RichMapFunction<Tuple2<Long, Tuple2<Long, Double>>, 
 		Tuple3<Long, Long, Double>> {
 	
 		private static final long serialVersionUID = 1L;
@@ -164,7 +166,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		}
 	}
 	
-	public static final class NewScoreMapper extends MapFunction<Tuple3<Long, Long, Double>, 
+	public static final class NewScoreMapper extends RichMapFunction<Tuple3<Long, Long, Double>, 
 		Tuple2<Long, Tuple2<Long, Double>>>{
 		
 		private static final long serialVersionUID = 1L;
