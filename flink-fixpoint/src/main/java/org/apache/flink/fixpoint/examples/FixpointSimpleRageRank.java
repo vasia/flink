@@ -1,10 +1,10 @@
 package org.apache.flink.fixpoint.examples;
 
 import org.apache.flink.api.common.ProgramDescription;
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.aggregation.Aggregations;
-import org.apache.flink.api.java.functions.RichMapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
@@ -56,7 +56,7 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 				DataSet<Tuple2<Long, Double>> resultAfterBulk) {
 					
 			DataSet<Tuple2<Long, Double>> initialDeltas = bulkInput.join(resultAfterBulk).where(0).equalTo(0)
-					.map(new RichMapFunction<Tuple2<Tuple2<Long, Double>,Tuple2<Long, Double>>, Tuple2<Long, Double>>() {
+					.map(new MapFunction<Tuple2<Tuple2<Long, Double>,Tuple2<Long, Double>>, Tuple2<Long, Double>>() {
 
 						public Tuple2<Long, Double> map(Tuple2<Tuple2<Long, Double>, Tuple2<Long, Double>> value)
 								throws Exception {
@@ -79,7 +79,7 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 		
 	}
 	
-	public static final class PartialRankMapper extends RichMapFunction<Tuple4<Long, Long, Double, Long>, 
+	public static final class PartialRankMapper implements MapFunction<Tuple4<Long, Long, Double, Long>, 
 		Tuple2<Long, Double>> {
 
 		private static final long serialVersionUID = 1L;

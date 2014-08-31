@@ -3,14 +3,14 @@ package org.apache.flink.fixpoint.examples;
 import java.util.Iterator;
 
 import org.apache.flink.api.common.ProgramDescription;
+import org.apache.flink.api.common.functions.GroupReduceFunction;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.ReduceFunction;
+import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.aggregation.Aggregations;
-import org.apache.flink.api.java.functions.RichGroupReduceFunction;
-import org.apache.flink.api.java.functions.RichReduceFunction;
 import org.apache.flink.api.java.functions.RichMapFunction;
-import org.apache.flink.api.java.functions.RichFilterFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
@@ -71,7 +71,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 			DataSet<Tuple3<Long, Long, Double>> candidateLabels = flattenedNeighborWithLabel.groupBy(0, 2).reduceGroup(new ScoreLabels());
 			// <vertexID, newLabel>
 			DataSet<Tuple2<Long, Long>> verticesWithNewLabels = candidateLabels.groupBy(0)
-					.reduce(new RichReduceFunction<Tuple3<Long, Long, Double>>() {
+					.reduce(new ReduceFunction<Tuple3<Long, Long, Double>>() {
 						
 						@Override
 						public Tuple3<Long, Long, Double> reduce(Tuple3<Long, Long, Double> value1,
@@ -88,7 +88,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 			DataSet<Tuple2<Long, Tuple2<Long, Double>>> verticesWithNewScoredLabels = 
 					verticesWithNewLabels.join(flattenedNeighborWithLabel).where(0).equalTo(0)
 					// <vertexID, newLabel, labelScore>
-					.filter(new RichFilterFunction<Tuple2<Tuple2<Long,Long>,Tuple5<Long,Long,Long,Double,Double>>>() {
+					.filter(new FilterFunction<Tuple2<Tuple2<Long,Long>,Tuple5<Long,Long,Long,Double,Double>>>() {
 						public boolean filter(
 								Tuple2<Tuple2<Long, Long>, Tuple5<Long, Long, Long, Double, Double>> value)
 								throws Exception {
@@ -110,7 +110,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		
 	}
 	
-	public static final class FlattenNeighbors extends RichMapFunction<Tuple4<Long, Long, Tuple2<Long, Double>, Double>, 
+	public static final class FlattenNeighbors implements MapFunction<Tuple4<Long, Long, Tuple2<Long, Double>, Double>, 
 		Tuple5<Long, Long, Long, Double, Double>> {
 		
 		private static final long serialVersionUID = 1L;
@@ -123,7 +123,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		}
 	}
 	
-	public static final class ScoreLabels extends RichGroupReduceFunction<Tuple5<Long, Long, Long, Double, Double>, 
+	public static final class ScoreLabels implements GroupReduceFunction<Tuple5<Long, Long, Long, Double, Double>, 
 		Tuple3<Long, Long, Double>> {
 
 		private static final long serialVersionUID = 1L;
@@ -153,7 +153,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		
 	}
 	
-	public static final class FlattenState extends RichMapFunction<Tuple2<Long, Tuple2<Long, Double>>, 
+	public static final class FlattenState implements MapFunction<Tuple2<Long, Tuple2<Long, Double>>, 
 		Tuple3<Long, Long, Double>> {
 	
 		private static final long serialVersionUID = 1L;

@@ -2,6 +2,7 @@ package org.apache.flink.fixpoint.api;
 
 import org.apache.commons.lang3.Validate;
 import org.apache.flink.api.common.aggregators.LongSumAggregator;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.DeltaIteration;
 import org.apache.flink.api.java.IterativeDataSet;
@@ -499,9 +500,8 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		return name;
 	}
 	
-	private static final class ProjectStepFunctionInput<K, V, E> extends RichFlatMapFunction
-		<Tuple2<Tuple2<K, V>, Tuple3<K, K, E>>, Tuple4<K, K, V, E>> 
-		implements ResultTypeQueryable<Tuple4<K, K, V, E>> {
+	private static final class ProjectStepFunctionInput<K, V, E> implements FlatMapFunction
+		<Tuple2<Tuple2<K, V>, Tuple3<K, K, E>>, Tuple4<K, K, V, E>>, ResultTypeQueryable<Tuple4<K, K, V, E>> {
 		
 		private static final long serialVersionUID = 1L;
 		private transient TypeInformation<Tuple4<K, K, V, E>> resultType;
@@ -579,9 +579,8 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 
 	}
 	
-	private static final class CandidateIDs<K, V, E> extends RichFlatMapFunction
-		<Tuple2<Tuple2<K, V>, Tuple3<K, K, E>>, Tuple1<K>> 
-		implements ResultTypeQueryable<Tuple1<K>> {
+	private static final class CandidateIDs<K, V, E> implements FlatMapFunction
+		<Tuple2<Tuple2<K, V>, Tuple3<K, K, E>>, Tuple1<K>>, ResultTypeQueryable<Tuple1<K>> {
 		
 		private static final long serialVersionUID = 1L;
 		private transient TypeInformation<Tuple1<K>> resultType;
@@ -606,9 +605,8 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 
 	}
 	
-	private static final class CandidatesDependencies<K, E> extends RichFlatMapFunction
-		<Tuple2<Tuple1<K>, Tuple3<K, K, E>>, Tuple3<K, K, E>> 
-		implements ResultTypeQueryable<Tuple3<K, K, E>> {
+	private static final class CandidatesDependencies<K, E> implements FlatMapFunction
+		<Tuple2<Tuple1<K>, Tuple3<K, K, E>>, Tuple3<K, K, E>>, ResultTypeQueryable<Tuple3<K, K, E>> {
 	
 		private static final long serialVersionUID = 1L;
 		private transient TypeInformation<Tuple3<K, K, E>> resultType;
@@ -632,9 +630,8 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	
 	}
 
-	private static final class EmitOnlyUpdatedValues<K, V> extends RichFlatMapFunction
-		<Tuple2<Tuple2<K, V>, Tuple2<K, V>>, Tuple2<K, V>> 
-		implements ResultTypeQueryable<Tuple2<K, V>> {
+	private static final class EmitOnlyUpdatedValues<K, V> implements FlatMapFunction
+		<Tuple2<Tuple2<K, V>, Tuple2<K, V>>, Tuple2<K, V>>, ResultTypeQueryable<Tuple2<K, V>> {
 	
 		private static final long serialVersionUID = 1L;
 		private transient TypeInformation<Tuple2<K, V>> resultType;
@@ -661,9 +658,8 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 
 	}
 
-	private static final class EmitDeltaUpdatedValues<K, V> extends RichFlatMapFunction
-		<Tuple2<Tuple2<K, V>, Tuple2<K, V>>, Tuple2<K, V>> 
-		implements ResultTypeQueryable<Tuple2<K, V>> {
+	private static final class EmitDeltaUpdatedValues<K, V> implements FlatMapFunction
+		<Tuple2<Tuple2<K, V>, Tuple2<K, V>>, Tuple2<K, V>>, ResultTypeQueryable<Tuple2<K, V>> {
 
 		private static final long serialVersionUID = 1L;
 		private transient TypeInformation<Tuple2<K, V>> resultType;

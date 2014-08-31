@@ -1,10 +1,10 @@
 package org.apache.flink.fixpoint.examples;
 
 import org.apache.flink.api.common.ProgramDescription;
+import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
-import org.apache.flink.api.java.functions.RichFlatMapFunction;
-import org.apache.flink.api.java.functions.RichReduceFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
@@ -49,7 +49,7 @@ public class FixpointLabelPropagation implements ProgramDescription {
 				DataSet<Tuple4<Long, Long, String, Double>> inNeighbors) {
 			
 			DataSet<Tuple2<Long, String>> updatedVertices = inNeighbors.flatMap(
-					new RichFlatMapFunction<Tuple4<Long, Long, String, Double>, Tuple3<Long, String, Double>>() {
+					new FlatMapFunction<Tuple4<Long, Long, String, Double>, Tuple3<Long, String, Double>>() {
 						public void flatMap(Tuple4<Long, Long, String, Double> value,
 								Collector<Tuple3<Long, String, Double>> out)	throws Exception {
 							if (!((value.f2).equals("n/a"))) {
@@ -57,12 +57,12 @@ public class FixpointLabelPropagation implements ProgramDescription {
 							}
 						}
 			})
-			.groupBy(0, 1).reduce(new RichReduceFunction<Tuple3<Long, String, Double>>() {
+			.groupBy(0, 1).reduce(new ReduceFunction<Tuple3<Long, String, Double>>() {
 				public Tuple3<Long, String, Double> reduce(Tuple3<Long, String, Double> value1,
 						Tuple3<Long, String, Double> value2) throws Exception {
 						return new Tuple3<Long, String, Double>(value1.f0, value1.f1, value1.f2 + value2.f2);
 				}
-			}).groupBy(0).reduce(new RichReduceFunction<Tuple3<Long, String, Double>>() {
+			}).groupBy(0).reduce(new ReduceFunction<Tuple3<Long, String, Double>>() {
 				public Tuple3<Long, String, Double> reduce(Tuple3<Long, String, Double> value1,
 						Tuple3<Long, String, Double> value2) throws Exception {
 					if (value1.f2 > value2.f2) {
