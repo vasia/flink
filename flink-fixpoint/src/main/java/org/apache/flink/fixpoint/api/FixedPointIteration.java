@@ -371,7 +371,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 				.where(0).equalTo(0).flatMap(new ProjectStepFunctionInput(stepFunctionInputType));
 		
 		// result of the step function
-		return this.stepFunction.updateState(parametersWithNeighborValues);
+		return this.stepFunction.updateState(parametersWithNeighborValues, iteration);
 	}
 	
 	private DataSet<Tuple2<K, V>> getDepResultWithoutWeight(
@@ -400,7 +400,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 				.where(0).equalTo(0).flatMap(new ProjectStepFunctionInput(stepFunctionInputType));
 		
 		// result of the step function
-		return this.stepFunction.updateState(parametersWithNeighborValues);
+		return this.stepFunction.updateState(parametersWithNeighborValues, depIteration.getSolutionSet());
 	}
 	
 	private DataSet<Tuple2<K, V>> getIncrementalResultWithoutWeight(
@@ -419,7 +419,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 				.where(0).equalTo(0).flatMap(new ProjectStepFunctionInput(stepFunctionInputType));
 		
 		// result of the step function
-		return this.stepFunction.updateState(parametersWithNeighborValues);
+		return this.stepFunction.updateState(parametersWithNeighborValues, iteration.getSolutionSet());
 	}
 	
 	private DataSet<Tuple2<K, V>> getDeltaResultWithoutWeight(
@@ -438,7 +438,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 				.where(0).equalTo(0).flatMap(new ProjectStepFunctionInput(stepFunctionInputType));
 		
 		// result of the step function
-		return this.stepFunction.updateState(parametersWithNeighborValues);
+		return this.stepFunction.updateState(parametersWithNeighborValues, iteration.getSolutionSet());
 	}
 
 	/**

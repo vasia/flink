@@ -43,7 +43,8 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 
 		@Override
 		public DataSet<Tuple2<Long, Double>> updateState(
-				DataSet<Tuple4<Long, Long, Double, Long>> inNeighbors) {
+				DataSet<Tuple4<Long, Long, Double, Long>> inNeighbors,
+				DataSet<Tuple2<Long, Double>> state) {
 			
 			DataSet<Tuple2<Long, Double>> newRanks = inNeighbors.map(new PartialRankMapper())
 														.groupBy(0).aggregate(Aggregations.SUM, 1)

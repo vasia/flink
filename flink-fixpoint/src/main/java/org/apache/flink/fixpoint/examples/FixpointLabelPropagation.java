@@ -46,7 +46,8 @@ public class FixpointLabelPropagation implements ProgramDescription {
 
 		@Override
 		public DataSet<Tuple2<Long, String>> updateState(
-				DataSet<Tuple4<Long, Long, String, Double>> inNeighbors) {
+				DataSet<Tuple4<Long, Long, String, Double>> inNeighbors,
+				DataSet<Tuple2<Long, String>> state) {
 			
 			DataSet<Tuple2<Long, String>> updatedVertices = inNeighbors.flatMap(
 					new FlatMapFunction<Tuple4<Long, Long, String, Double>, Tuple3<Long, String, Double>>() {

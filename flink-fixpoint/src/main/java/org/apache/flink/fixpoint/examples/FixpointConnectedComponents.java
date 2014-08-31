@@ -44,7 +44,7 @@ public class FixpointConnectedComponents implements ProgramDescription {
 
 		@Override
 		public DataSet<Tuple2<Long, Long>> updateState(
-				DataSet<Tuple4<Long, Long, Long, Long>> inNeighbors) {
+				DataSet<Tuple4<Long, Long, Long, Long>> inNeighbors, DataSet<Tuple2<Long, Long>> state) {
 			
 			DataSet<Tuple3<Long, Long, Long>> groupedNeighbors = inNeighbors.groupBy(0).aggregate(Aggregations.MIN, 2)
 																	.project(0, 2, 3)

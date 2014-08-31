@@ -33,7 +33,8 @@ public abstract class StepFunction<K, V, E>  implements Serializable {
 	 * @param inComingNeighbors: <trgID, srcID, srcValue, edgeValue> 
 	 * @return: <trgID, newValue>
 	 */
-	public abstract DataSet<Tuple2<K, V>> updateState(DataSet<Tuple4<K, K, V, E>> inNeighbors);
+	public abstract DataSet<Tuple2<K, V>> updateState(DataSet<Tuple4<K, K, V, E>> inNeighbors, 
+			DataSet<Tuple2<K, V>> state);
 	
 	/**
 	 * 
