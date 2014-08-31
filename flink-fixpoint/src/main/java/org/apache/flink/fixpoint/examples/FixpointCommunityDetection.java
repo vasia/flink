@@ -9,7 +9,6 @@ import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
-import org.apache.flink.api.java.aggregation.Aggregations;
 import org.apache.flink.api.java.functions.RichMapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -35,6 +34,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 		env.setDegreeOfParallelism(1);
 		
+		// <vertexID, <label, score>>
 		DataSet<Tuple2<Long, Tuple2<Long, Double>>> vertices = env.readCsvFile(args[0]).fieldDelimiter('\t').types(Long.class, 
 				Long.class, Double.class).map(new MapFunction<Tuple3<Long, Long, Double>, 
 						Tuple2<Long, Tuple2<Long, Double>>>(){
@@ -63,7 +63,8 @@ public class FixpointCommunityDetection implements ProgramDescription {
 
 		@Override
 		public DataSet<Tuple2<Long, Tuple2<Long, Double>>> updateState(
-			DataSet<Tuple4<Long, Long, Tuple2<Long, Double>, Double>> inNeighbors) {
+			DataSet<Tuple4<Long, Long, Tuple2<Long, Double>, Double>> inNeighbors, 
+			DataSet<Tuple2<Long, Tuple2<Long, Double>>> state) {
 			
 			// <vertexID, neighborID, neighborLabel, neighborScore, edgeWeight>
 			DataSet<Tuple5<Long, Long, Long, Double, Double>> flattenedNeighborWithLabel = inNeighbors.map(new FlattenNeighbors());
@@ -100,11 +101,23 @@ public class FixpointCommunityDetection implements ProgramDescription {
 						public Tuple3<Long, Long, Double> map(
 								Tuple2<Tuple2<Long, Long>, Tuple5<Long, Long, Long, Double, Double>> value)
 								throws Exception {
+							// <vertexID, label, score>
 							return new Tuple3<Long, Long, Double>(value.f0.f0, value.f0.f1, value.f1.f3);
 						}
 					})
-					.groupBy(0).aggregate(Aggregations.MAX, 2)
-					.map(new NewScoreMapper());
+					.groupBy(0).reduce(new ReduceFunction<Tuple3<Long, Long, Double>>() {
+						// find max-score label
+						@Override
+						public Tuple3<Long, Long, Double> reduce(Tuple3<Long, Long, Double> value1,
+								Tuple3<Long, Long, Double> value2) throws Exception {
+							if (value1.f2 > value2.f2) {
+								return value1;
+							}
+							else {
+								return value2;
+							}
+						}
+					}).join(state).where(0).equalTo(0).map(new NewScoreMapper());
 			return verticesWithNewScoredLabels;
 		}
 		
@@ -166,7 +179,8 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		}
 	}
 	
-	public static final class NewScoreMapper extends RichMapFunction<Tuple3<Long, Long, Double>, 
+	public static final class NewScoreMapper extends RichMapFunction<Tuple2<Tuple3<Long, Long, Double>, 
+	Tuple2<Long, Tuple2<Long, Double>>>, 
 		Tuple2<Long, Tuple2<Long, Double>>>{
 		
 		private static final long serialVersionUID = 1L;
@@ -178,10 +192,21 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		}
 		
 		@Override
-		public Tuple2<Long, Tuple2<Long, Double>> map(Tuple3<Long, Long, Double> value)
+		public Tuple2<Long, Tuple2<Long, Double>> map(Tuple2<Tuple3<Long, Long, Double>, 
+				Tuple2<Long, Tuple2<Long, Double>>> value)
 				throws Exception {
-			return new Tuple2<Long, Tuple2<Long, Double>>(
-					value.f0, new Tuple2<Long, Double>(value.f1, value.f2 - (delta / (double) superstep)));
+			// if the newly assigned label is the same as the previous one, 
+			// delta = 0
+			if (value.f0.f1 == value.f1.f1.f0) {
+				return new Tuple2<Long, Tuple2<Long, Double>>(
+						value.f0.f0, 
+						new Tuple2<Long, Double>(value.f0.f1, value.f0.f2));
+			}
+			else {
+				return new Tuple2<Long, Tuple2<Long, Double>>(
+					value.f0.f0, 
+					new Tuple2<Long, Double>(value.f0.f1, value.f0.f2 - (delta / (double) superstep)));
+			}
 		}
 		
 	}
