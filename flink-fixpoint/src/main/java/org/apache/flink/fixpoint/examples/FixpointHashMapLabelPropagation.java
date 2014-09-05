@@ -1,23 +1,24 @@
 package org.apache.flink.fixpoint.examples;
 
+import java.util.HashMap;
 import java.util.Random;
 
 import org.apache.flink.api.common.ProgramDescription;
-import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
+import org.apache.flink.api.java.functions.RichGroupReduceFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.fixpoint.api.FixedPointIteration;
 import org.apache.flink.fixpoint.api.StepFunction;
 import org.apache.flink.util.Collector;
 
 
 
-public class FixpointLabelPropagation implements ProgramDescription {
+public class FixpointHashMapLabelPropagation implements ProgramDescription {
 
 	public static void main(String... args) throws Exception {
 		
@@ -48,9 +49,8 @@ public class FixpointLabelPropagation implements ProgramDescription {
 	
 		DataSet<Tuple2<Long, Integer>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
 				new MostFrequentLabel(), maxIterations, args[5]));
-
 		result.print();
-		env.execute("Fixed Point Label Propagation");
+		env.execute("Fixed Point Label Propagation (HashMap Implementation)");
 		
 	}
 	
@@ -62,38 +62,68 @@ public class FixpointLabelPropagation implements ProgramDescription {
 				DataSet<Tuple4<Long, Long, Integer, Double>> inNeighbors,
 				DataSet<Tuple2<Long, Integer>> state) {
 			
-			DataSet<Tuple2<Long, Integer>> updatedVertices = inNeighbors.flatMap(
-					new FlatMapFunction<Tuple4<Long, Long, Integer, Double>, Tuple3<Long, Integer, Double>>() {
-						public void flatMap(Tuple4<Long, Long, Integer, Double> value,
-								Collector<Tuple3<Long, Integer, Double>> out)	throws Exception {
-																		// <trgId, candidateLabel, weight>
-								out.collect(new Tuple3<Long, Integer, Double>(value.f0, value.f2, value.f3));
-						}
-			})
-			// groupBy <vertexID, label> 
-			.groupBy(0, 1).reduce(new ReduceFunction<Tuple3<Long, Integer, Double>>() {
-				public Tuple3<Long, Integer, Double> reduce(Tuple3<Long, Integer, Double> value1,
-						Tuple3<Long, Integer, Double> value2) throws Exception {
-																// accumulate weights
-						return new Tuple3<Long, Integer, Double>(value1.f0, value1.f1, value1.f2 + value2.f2);
-				}
-				// groupBy vertexID
-			}).groupBy(0).reduce(new ReduceFunction<Tuple3<Long, Integer, Double>>() {
-				public Tuple3<Long, Integer, Double> reduce(Tuple3<Long, Integer, Double> value1,
-						Tuple3<Long, Integer, Double> value2) throws Exception {
-					// choose label with highest total weight
-					if (value1.f2 > value2.f2) {
-						return value1;
+			return inNeighbors.groupBy(0).reduceGroup(new FindMostFrequentLabel());
+		}
+	}
+	
+	@SuppressWarnings("serial")
+	public static final class FindMostFrequentLabel extends RichGroupReduceFunction<Tuple4<Long, Long, Integer, Double>, 
+		Tuple2<Long, Integer>> {
+		
+		private HashMap<Integer, Double> labelsWithFrequencies = new HashMap<Integer, Double>();
+		private Long vertexID;
+		private Integer firstLabel;
+		
+		@Override
+		public void open(Configuration conf) {
+			labelsWithFrequencies.clear();
+		}
+
+		@Override
+		public void reduce(
+				Iterable<Tuple4<Long, Long, Integer, Double>> values,
+				Collector<Tuple2<Long, Integer>> out) throws Exception {
+			
+			int i = 0;
+				for (Tuple4<Long, Long, Integer, Double> rec : values) { 
+					if (i == 0) {
+						// store vertexID and first label
+						vertexID = rec.f0;
+						firstLabel = rec.f2;
+			   			labelsWithFrequencies.put(firstLabel, rec.f3);						
 					}
 					else {
-						return value2;
+						// process the rest of the records
+						Integer currentLabel = rec.f2;
+						
+						if (!(labelsWithFrequencies.containsKey(currentLabel))) {
+			    			// first time we see this label
+			    			labelsWithFrequencies.put(currentLabel, rec.f3);
+			    		}
+			    		else {
+			    			// we have seen this label before -- add weight
+			    			double freq = labelsWithFrequencies.get(currentLabel).doubleValue();
+			    			labelsWithFrequencies.put(currentLabel, new Double(freq + rec.f3.doubleValue()));
+			    		}
 					}
-				}	
-			}).project(0, 1).types(Long.class, Integer.class);
-					
-			return updatedVertices;
-		}
-		
+					i++;
+				}
+				
+				if (i > 0) {
+					// adopt the most frequent label
+					double maxFreq = 0.0;
+			    	Integer mostFrequentLabel = firstLabel;
+			    	
+			    	for (Integer label: labelsWithFrequencies.keySet()) {
+			    		if (labelsWithFrequencies.get(label).doubleValue() > maxFreq) {
+			    			maxFreq = labelsWithFrequencies.get(label).doubleValue();
+			    			mostFrequentLabel = label;
+			    		}
+			    	}
+			    	
+					out.collect(new Tuple2<Long, Integer>(vertexID, mostFrequentLabel));
+				}
+			}
 	}
 	
 	@Override
