@@ -20,19 +20,18 @@ import org.apache.flink.fixpoint.api.StepFunction;
 import org.apache.flink.util.Collector;
 
 public class FixpointCommunityDetection implements ProgramDescription {
-	
-	private static final double delta = 0.5;
+
+	private static double delta;
 
 	@SuppressWarnings("serial")
 	public static void main(String... args) throws Exception {
 		
 		if (args.length < 4) {
-			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <max_iterations>"
+			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <delta> <max_iterations>"
 					+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>");
 			return;
 		}
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
-		env.setDegreeOfParallelism(1);
 		
 		// <vertexID, <label, score>>
 		DataSet<Tuple2<Long, Tuple2<Long, Double>>> vertices = env.readCsvFile(args[0]).fieldDelimiter('\t').types(Long.class, 
@@ -48,10 +47,11 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		DataSet<Tuple3<Long, Long, Double>> edges = env.readCsvFile(args[1]).fieldDelimiter('\t').types(Long.class, Long.class, 
 				Double.class); 
 		
-		int maxIterations = Integer.parseInt(args[3]);
+		delta = Double.parseDouble(args[3]);
+		final int maxIterations = Integer.parseInt(args[4]);
 	
 		DataSet<Tuple2<Long, Tuple2<Long, Double>>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
-				new ComputeCommunities(), maxIterations, args[4]));
+				new ComputeCommunities(), maxIterations, args[5]));
 
 		result.print();
 		env.execute("Fixed Point Community Detection");
@@ -213,7 +213,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		
 	@Override
 	public String getDescription() {
-		return "Parameters: <vertices-path> <edges-path> <result-path> <max-number-of-iterations> "
+		return "Parameters: <vertices-path> <edges-path> <result-path> <delta> <max-number-of-iterations> "
 				+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>";
 	}
 
