@@ -25,9 +25,9 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 		
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 		
-		DataSet<Tuple2<Long, Double>> vertices = env.readCsvFile(args[0]).fieldDelimiter(' ').types(Long.class, Double.class);
+		DataSet<Tuple2<Long, Double>> vertices = env.readCsvFile(args[0]).fieldDelimiter('\t').types(Long.class, Double.class);
 		
-		DataSet<Tuple3<Long, Long, Long>> edges = env.readCsvFile(args[1]).fieldDelimiter(' ').types(Long.class, Long.class, 
+		DataSet<Tuple3<Long, Long, Long>> edges = env.readCsvFile(args[1]).fieldDelimiter('\t').types(Long.class, Long.class, 
 				Long.class); 
 		
 		final int maxIterations = Integer.parseInt(args[3]);
