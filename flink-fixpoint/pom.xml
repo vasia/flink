@@ -48,4 +48,190 @@ under the License.
 		</dependency>
 	</dependencies>
 
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<executions>
+
+					<!-- Fixpoint CC -->
+					<execution>
+						<id>Fixpoint-CC</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+
+						<configuration>
+							<classifier>Fixpoint-CC</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.fixpoint.examples.FixpointConnectedComponents</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>**/fixpoint/examples/FixpointConnectedComponents.class</include>
+								<include>**/fixpoint/examples/FixpointConnectedComponents$*.class</include>
+								<include>**/fixpoint/api/*</include>
+							</includes>
+						</configuration>
+					</execution>
+
+					<!-- Fixpoint CD -->
+					<execution>
+						<id>Fixpoint-CD</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+
+						<configuration>
+							<classifier>Fixpoint-CD</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.fixpoint.examples.FixpointCommunityDetection</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>**/fixpoint/examples/FixpointCommunityDetection.class</include>
+								<include>**/fixpoint/examples/FixpointCommunityDetection$*.class</include>
+								<include>**/fixpoint/api/*</include>
+							</includes>
+						</configuration>
+					</execution>
+
+					<!-- Fixpoint HashMap-CD -->
+					<execution>
+						<id>Fixpoint-HashMap-CD</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+
+						<configuration>
+							<classifier>Fixpoint-HashMap-CD</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.fixpoint.examples.FixpointHashMapCommunityDetection</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>**/fixpoint/examples/FixpointHashMapCommunityDetection.class</include>
+								<include>**/fixpoint/examples/FixpointHashMapCommunityDetection$*.class</include>
+								<include>**/fixpoint/api/*</include>
+							</includes>
+						</configuration>
+					</execution>
+
+					<!-- Fixpoint LP -->
+					<execution>
+						<id>Fixpoint-LP</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+
+						<configuration>
+							<classifier>Fixpoint-LP</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.fixpoint.examples.FixpointLabelPropagation</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>**/fixpoint/examples/FixpointLabelPropagation.class</include>
+								<include>**/fixpoint/examples/FixpointLabelPropagation$*.class</include>
+								<include>**/fixpoint/api/*</include>
+							</includes>
+						</configuration>
+					</execution>
+
+					<!-- Fixpoint HashMap-LP -->
+					<execution>
+						<id>Fixpoint-HashMap-LP</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+
+						<configuration>
+							<classifier>Fixpoint-HashMap-LP</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.fixpoint.examples.FixpointHashMapLabelPropagation</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>**/fixpoint/examples/FixpointHashMapLabelPropagation.class</include>
+								<include>**/fixpoint/examples/FixpointHashMapLabelPropagation$*.class</include>
+								<include>**/fixpoint/api/*</include>
+							</includes>
+						</configuration>
+					</execution>
+
+					<!-- Fixpoint PR -->
+					<execution>
+						<id>Fixpoint-PR</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+
+						<configuration>
+							<classifier>Fixpoint-PR</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.fixpoint.examples.FixpointSimplePageRank</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>**/fixpoint/examples/FixpointSimplePageRank.class</include>
+								<include>**/fixpoint/examples/FixpointSimplePageRank$*.class</include>
+								<include>**/fixpoint/api/*</include>
+							</includes>
+						</configuration>
+					</execution>
+
+					<!-- Fixpoint SSSP -->
+					<execution>
+						<id>Fixpoint-SSSP</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+
+						<configuration>
+							<classifier>Fixpoint-SSSP</classifier>
+
+							<archive>
+								<manifestEntries>
+									<program-class>org.apache.flink.fixpoint.examples.FixpointSSSP</program-class>
+								</manifestEntries>
+							</archive>
+
+							<includes>
+								<include>**/fixpoint/examples/FixpointSSSP.class</include>
+								<include>**/fixpoint/examples/FixpointSSSP$*.class</include>
+								<include>**/fixpoint/api/*</include>
+							</includes>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+
 </project>
