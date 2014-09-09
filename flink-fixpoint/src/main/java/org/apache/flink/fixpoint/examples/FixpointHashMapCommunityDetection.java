@@ -24,9 +24,10 @@ public class FixpointHashMapCommunityDetection implements ProgramDescription {
 	@SuppressWarnings("serial")
 	public static void main(String... args) throws Exception {
 		
-		if (args.length < 4) {
-			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <max_iterations>"
-					+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>");
+		if (args.length < 7) {
+			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <delta> <max_iterations>"
+					+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
+					+ " <numParameters> <avg-node-degree>");
 			return;
 		}
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
@@ -47,9 +48,12 @@ public class FixpointHashMapCommunityDetection implements ProgramDescription {
 		
 		delta = Double.parseDouble(args[3]);
 		final int maxIterations = Integer.parseInt(args[4]);
+		final int numParameters = Integer.parseInt(args[6]);
+		final double avgNodeDegree = Double.parseDouble(args[7]);
+
 	
 		DataSet<Tuple2<Long, Tuple2<Long, Double>>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
-				new ComputeCommunities(), maxIterations, args[5]));
+				new ComputeCommunities(), maxIterations, args[5], numParameters, avgNodeDegree));
 
 		result.print();
 		env.execute("Fixed Point Community Detection (HashMap implementation)");
@@ -221,8 +225,9 @@ public class FixpointHashMapCommunityDetection implements ProgramDescription {
 		
 	@Override
 	public String getDescription() {
-		return "Parameters: <vertices-path> <edges-path> <result-path> <delta> <max-number-of-iterations> "
-				+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>";
+		return "Parameters: <vertices-path> <edges-path> <result-path> <delta> <max_iterations>"
+				+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
+				+ " <numParameters> <avg-node-degree>";
 	}
 
 }

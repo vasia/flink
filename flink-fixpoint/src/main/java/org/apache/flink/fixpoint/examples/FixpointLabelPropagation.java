@@ -21,9 +21,10 @@ public class FixpointLabelPropagation implements ProgramDescription {
 
 	public static void main(String... args) throws Exception {
 		
-		if (args.length < 5) {
+		if (args.length < 7) {
 			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <number-of-labels> "
-					+ "<max-iterations> <execution-mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>");
+					+ "<max-iterations> <execution-mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
+					+ "<numParameters> <avg-node-degree>");
 			return;
 		}
 		
@@ -31,6 +32,8 @@ public class FixpointLabelPropagation implements ProgramDescription {
 		
 		final int numLabels = Integer.parseInt(args[3]);
 		final int maxIterations = Integer.parseInt(args[4]);
+		final int numParameters = Integer.parseInt(args[6]);
+		final double avgNodeDegree = Double.parseDouble(args[7]);
 		
 		// initialize vertices with random labels
 		@SuppressWarnings("serial")
@@ -47,7 +50,7 @@ public class FixpointLabelPropagation implements ProgramDescription {
 				Double.class); 
 	
 		DataSet<Tuple2<Long, Integer>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
-				new MostFrequentLabel(), maxIterations, args[5]));
+				new MostFrequentLabel(), maxIterations, args[5], numParameters, avgNodeDegree));
 
 		result.print();
 		env.execute("Fixed Point Label Propagation");
@@ -99,7 +102,8 @@ public class FixpointLabelPropagation implements ProgramDescription {
 	@Override
 	public String getDescription() {
 		return "Parameters: <vertices-path> <edges-path> <result-path> <number-of-labels> <max-number-of-iterations> "
-				+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>";
+				+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
+				+ "<numParameters> <avg-node-degree>";
 	}
 	
 }

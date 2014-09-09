@@ -22,11 +22,11 @@ public class UpdatedElementsCostModelConvergence implements ConvergenceCriterion
 	 */
 	@Override
 	public boolean isConverged(int iteration, LongValue value) {		
-		System.out.println("[convergence check] Elements: " + value.getValue());
+//		System.out.println("[convergence check] Elements: " + value.getValue());
 		double left_hand_side = ((double) (3*value.getValue()) / (double) this.totalVertices);
-		System.out.println("[convergence check] Left: " + left_hand_side);
+//		System.out.println("[convergence check] Left: " + left_hand_side);
 		double right_hand_side = (double) (1.0 / (this.avgNodeDegree + 1.0));
-		System.out.println("[convergence check] Right: " + right_hand_side);
+//		System.out.println("[convergence check] Right: " + right_hand_side);
 		return (left_hand_side <= right_hand_side);
 	}
 

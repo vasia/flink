@@ -51,7 +51,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	 
 	
 	private FixedPointIteration(DataSet<Tuple3<K, K, E>> dependenciesWithWeight, StepFunction<K, V, E> stepFunction, 
-			int maxIterations, String mode) {
+			int maxIterations, String mode, int numParameters, double avgNodeDegree) {
 
 		Validate.notNull(dependenciesWithWeight);
 		Validate.isTrue(maxIterations > 0, "The maximum number of iterations must be at least one.");
@@ -69,14 +69,14 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		this.dependenciesWithoutWeight = null;
 		this.maxIterations = maxIterations;
 		this.stepFunction  = stepFunction;
-		this.numberOfParameters = 9; // parametersInput.count()
-		this.avgNodeDegree = 3.0; // dependenciesWithInput.count() / numberOfParameters
+		this.numberOfParameters =  numParameters; // parametersInput.count()
+		this.avgNodeDegree = avgNodeDegree; // dependenciesWithInput.count() / numberOfParameters
 		this.execMode = mode != null ? mode : "COST_MODEL";		
 
 	}
 	
 	private FixedPointIteration(DataSet<Tuple2<K, K>> dependenciesWithoutWeight, StepFunction<K, V, E> stepFunction, 
-			int maxIterations, String mode, boolean noDepepndencyWeight) {
+			int maxIterations, String mode, int numParameters, double avgNodeDegree, boolean noDepepndencyWeight) {
 		
 		Validate.notNull(dependenciesWithoutWeight);
 		Validate.isTrue(maxIterations > 0, "The maximum number of iterations must be at least one.");
@@ -94,8 +94,8 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		this.dependenciesWithWeight = null;
 		this.maxIterations = maxIterations;
 		this.stepFunction  = stepFunction;
-		this.numberOfParameters = 9; // verticesInput.count()
-		this.avgNodeDegree = 3.0; // edgesInput.count() / numberOfVertices
+		this.numberOfParameters = numParameters; // verticesInput.count()
+		this.avgNodeDegree = avgNodeDegree; // edgesInput.count() / numberOfVertices
 		this.execMode = mode != null ? mode : "COST_MODEL";
 	}
 
@@ -455,10 +455,10 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	public static final <K, V> FixedPointIteration<K, V, Object> withPlainDependencies(
 					DataSet<Tuple2<K, K>> dependenciesWithoutWeight,
 						StepFunction<K, V, Object> stepFunction,
-						int maximumNumberOfIterations, String mode)
+						int maximumNumberOfIterations, String mode, int numParameters, double avgNodeDegree)
 	{		
 		return new FixedPointIteration<K, V, Object>(dependenciesWithoutWeight, stepFunction, 
-				maximumNumberOfIterations, mode, true);
+				maximumNumberOfIterations, mode, numParameters, avgNodeDegree, true);
 	}
 	
 	/**
@@ -476,9 +476,10 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	public static final <K, V, E> FixedPointIteration<K, V, E> withWeightedDependencies(
 					DataSet<Tuple3<K, K, E>> dependenciesWithWeight,
 					StepFunction<K, V, E> stepFunction,
-					int maximumNumberOfIterations, String mode)
+					int maximumNumberOfIterations, String mode, int numParameters, double avgNodeDegree)
 	{
-		return new FixedPointIteration<K, V, E>(dependenciesWithWeight, stepFunction, maximumNumberOfIterations, mode);
+		return new FixedPointIteration<K, V, E>(dependenciesWithWeight, stepFunction, maximumNumberOfIterations, mode,
+				numParameters, avgNodeDegree);
 	}
 	
 	

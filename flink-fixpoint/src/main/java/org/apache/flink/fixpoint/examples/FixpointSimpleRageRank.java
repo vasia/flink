@@ -16,9 +16,10 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 
 	public static void main(String... args) throws Exception {
 		
-		if (args.length < 4) {
+		if (args.length < 6) {
 			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <max_iterations>"
-					+ " <execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>");
+					+ " <execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
+					+ " <numParameters> <avg-node-degree>");
 			return;
 		}
 		
@@ -29,10 +30,12 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 		DataSet<Tuple3<Long, Long, Long>> edges = env.readCsvFile(args[1]).fieldDelimiter(' ').types(Long.class, Long.class, 
 				Long.class); 
 		
-		int maxIterations = Integer.parseInt(args[3]);
+		final int maxIterations = Integer.parseInt(args[3]);
+		final int numParameters = Integer.parseInt(args[5]);
+		final double avgNodeDegree = Double.parseDouble(args[6]);
 		
 		DataSet<Tuple2<Long, Double>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
-				new UpdateRanks(), maxIterations, args[4]));
+				new UpdateRanks(), maxIterations, args[4], numParameters, avgNodeDegree));
 
 		result.print();
 		env.execute("Fixed Point Simple PageRank");
@@ -88,7 +91,7 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 		@Override
 		public Tuple2<Long, Double> map(Tuple4<Long, Long, Double, Long> value)
 				throws Exception {
-			double partialRank = value.f2 / (double) value.f3;
+			double partialRank = 0.85 + 0.15 * (value.f2 / (double) value.f3);
 			
 			return new Tuple2<Long, Double>(value.f0, partialRank);
 		}
@@ -98,7 +101,8 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 	@Override
 	public String getDescription() {
 		return "Parameters: <vertices-path> <edges-path> <result-path> <max-number-of-iterations> "
-				+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>";
+				+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
+				+ " <numParameters> <avg-node-degree>";
 	}
 
 }

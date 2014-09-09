@@ -15,9 +15,10 @@ import org.apache.flink.api.java.tuple.Tuple4;
 public class FixpointSSSP implements ProgramDescription {
 
 	public static void main(String... args) throws Exception {
-		if (args.length < 4) {
+		if (args.length < 6) {
 			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <max_iterations> "
-					+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>");
+					+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
+					+ " <numParameters> <avg-node-degree>");
 			return;
 		}
 		
@@ -28,10 +29,12 @@ public class FixpointSSSP implements ProgramDescription {
 		DataSet<Tuple3<Long, Long, Long>> edges = env.readCsvFile(args[1]).fieldDelimiter('\t').types(Long.class, Long.class, 
 				Long.class); 
 		
-		int maxIterations = Integer.parseInt(args[3]);
+		final int maxIterations = Integer.parseInt(args[3]);
+		final int numParameters = Integer.parseInt(args[5]);
+		final double avgNodeDegree = Double.parseDouble(args[6]);
 		
 		DataSet<Tuple2<Long, Long>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
-				new ShortestPath(), maxIterations, args[4]));
+				new ShortestPath(), maxIterations, args[4], numParameters, avgNodeDegree));
 
 		result.print();
 		env.execute("Fixed Point SSSP");
@@ -78,6 +81,7 @@ public class FixpointSSSP implements ProgramDescription {
 	@Override
 	public String getDescription() {
 		return "Parameters: <vertices-path> <edges-path> <result-path> <max-number-of-iterations> "
-				+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>";
+				+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
+				+ " <numParameters> <avg-node-degree>";
 	}
 }
