@@ -53,7 +53,7 @@ public class FixpointHashMapLabelPropagation implements ProgramDescription {
 	
 		DataSet<Tuple2<Long, Integer>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
 				new MostFrequentLabel(), maxIterations, args[5], numParameters, avgNodeDegree));
-		result.print();
+		result.writeAsText(args[2]);
 		env.execute("Fixed Point Label Propagation (HashMap Implementation)");
 		
 	}

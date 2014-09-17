@@ -253,6 +253,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		DeltaIteration<Tuple2<K, V>, Tuple2<K, V>> depIteration = bulkResult.iterateDelta(bulkResult, 
 				maxIterations - iterationsElapsed + 1, 0);
 		depIteration.name("Dependency iteration:" + name);
+//		System.out.println("Dependency!");
 		
 		DataSet<Tuple2<K, V>> dependencyParametersWithNewValues;
 		
@@ -553,9 +554,9 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 				if (iterationsElapsed > 1) {
 					LongValue updatedElementsValue = getIterationRuntimeContext().getPreviousIterationAggregate(UPDATED_ELEMENTS_AGGR);
 					bulkUpdatedElements = updatedElementsValue.getValue();
-					System.out.println("Updated elements: " +bulkUpdatedElements);
+//					System.out.println("Updated elements: " +bulkUpdatedElements);
 				}
-				System.out.println("Bulk Iteration " + iterationsElapsed);
+//				System.out.println("Bulk Iteration " + iterationsElapsed);
 			}
 		}
 

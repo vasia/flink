@@ -5,6 +5,7 @@ import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.aggregation.Aggregations;
+import org.apache.flink.api.java.tuple.Tuple1;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
@@ -16,28 +17,36 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 
 	public static void main(String... args) throws Exception {
 		
-		if (args.length < 6) {
+		if (args.length < 7) {
 			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <max_iterations>"
 					+ " <execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
 					+ " <numParameters> <avg-node-degree>");
 			return;
 		}
 		
-		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
-		
-		DataSet<Tuple2<Long, Double>> vertices = env.readCsvFile(args[0]).fieldDelimiter('\t').types(Long.class, Double.class);
-		
-		DataSet<Tuple3<Long, Long, Long>> edges = env.readCsvFile(args[1]).fieldDelimiter('\t').types(Long.class, Long.class, 
-				Long.class); 
-		
 		final int maxIterations = Integer.parseInt(args[3]);
 		final int numParameters = Integer.parseInt(args[5]);
 		final double avgNodeDegree = Double.parseDouble(args[6]);
 		
+		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
+		
+		DataSet<Tuple2<Long, Double>> vertices = env.readCsvFile(args[0]).types(Long.class)
+				.map(new MapFunction<Tuple1<Long>, Tuple2<Long, Double>>() {
+					private static final long serialVersionUID = 1L;
+
+					public Tuple2<Long, Double> map(Tuple1<Long> value)
+							throws Exception {
+						return new Tuple2<Long, Double>(value.f0, 1.0 / numParameters);
+					}
+				});
+		
+		DataSet<Tuple3<Long, Long, Long>> edges = env.readCsvFile(args[1]).fieldDelimiter('\t').types(Long.class, Long.class, 
+				Long.class); 
+		
 		DataSet<Tuple2<Long, Double>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
 				new UpdateRanks(), maxIterations, args[4], numParameters, avgNodeDegree));
 
-		result.print();
+		result.writeAsText(args[2]);
 		env.execute("Fixed Point Simple PageRank");
 	}
 	

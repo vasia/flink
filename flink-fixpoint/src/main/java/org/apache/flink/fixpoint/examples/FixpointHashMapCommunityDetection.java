@@ -55,7 +55,7 @@ public class FixpointHashMapCommunityDetection implements ProgramDescription {
 		DataSet<Tuple2<Long, Tuple2<Long, Double>>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
 				new ComputeCommunities(), maxIterations, args[5], numParameters, avgNodeDegree));
 
-		result.print();
+		result.writeAsText(args[2]);
 		env.execute("Fixed Point Community Detection (HashMap implementation)");
 		
 	}
