@@ -45,7 +45,7 @@ public class WebDataPreprocessing implements ProgramDescription {
 					}
 				});
 		
-		edgesWithOutlinks.writeAsCsv(args[2], "\n", "\t");
+		edgesWithOutlinks.writeAsCsv(args[1], "\n", "\t");
 		
 		env.execute("Web Data Preprocessing");
 			

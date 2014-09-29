@@ -1,6 +1,7 @@
 package org.apache.flink.fixpoint.examples;
 
 import java.util.Iterator;
+import java.util.Random;
 
 import org.apache.flink.api.common.ProgramDescription;
 import org.apache.flink.api.common.functions.GroupReduceFunction;
@@ -10,6 +11,7 @@ import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.functions.RichMapFunction;
+import org.apache.flink.api.java.tuple.Tuple1;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
@@ -26,7 +28,7 @@ public class FixpointCommunityDetection implements ProgramDescription {
 	@SuppressWarnings("serial")
 	public static void main(String... args) throws Exception {
 		
-		if (args.length < 7) {
+		if (args.length < 8) {
 			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <delta> <max_iterations>"
 					+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
 					+ " <numParameters> <avg-node-degree>");
@@ -35,18 +37,26 @@ public class FixpointCommunityDetection implements ProgramDescription {
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 		
 		// <vertexID, <label, score>>
-		DataSet<Tuple2<Long, Tuple2<Long, Double>>> vertices = env.readCsvFile(args[0]).fieldDelimiter('\t').types(Long.class, 
-				Long.class, Double.class).map(new MapFunction<Tuple3<Long, Long, Double>, 
+		DataSet<Tuple2<Long, Tuple2<Long, Double>>> vertices = env.readCsvFile(args[0]).types(Long.class)
+				.map(new MapFunction<Tuple1<Long>, 
 						Tuple2<Long, Tuple2<Long, Double>>>(){
 					public Tuple2<Long, Tuple2<Long, Double>> map(
-							Tuple3<Long, Long, Double> value) throws Exception {
-						return new Tuple2<Long, Tuple2<Long, Double>>(value.f0, new Tuple2<Long, Double>(value.f1, value.f2));
+							Tuple1<Long> value) throws Exception {
+						return new Tuple2<Long, Tuple2<Long, Double>>(value.f0, 
+								new Tuple2<Long, Double>(value.f0, 1.0));
 					}
 					
 				});
 		
-		DataSet<Tuple3<Long, Long, Double>> edges = env.readCsvFile(args[1]).fieldDelimiter('\t').types(Long.class, Long.class, 
-				Double.class); 
+		DataSet<Tuple3<Long, Long, Double>> edges = env.readCsvFile(args[1]).fieldDelimiter('\t').types(Long.class, Long.class)
+				.map(new MapFunction<Tuple2<Long, Long>, Tuple3<Long, Long, Double>>() {
+					public Tuple3<Long, Long, Double> map(
+							Tuple2<Long, Long> value) throws Exception {
+						Random randomGenerator = new Random();
+						return new Tuple3<Long, Long, Double>(value.f0, value.f1, randomGenerator.nextDouble());
+					}
+					 
+				});
 		
 		delta = Double.parseDouble(args[3]);
 		final int maxIterations = Integer.parseInt(args[4]);
