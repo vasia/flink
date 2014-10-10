@@ -18,9 +18,7 @@
 package org.apache.flink.streaming.api.invokable.operator;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.streaming.api.invokable.util.TimeStamp;
@@ -30,84 +28,76 @@ public class GroupedWindowReduceInvokable<OUT> extends WindowReduceInvokable<OUT
 
 	private static final long serialVersionUID = 1L;
 	private int keyPosition;
+	private Map<Object, StreamWindow> streamWindows;
+	private long currentMiniBatchCount = 0;
 
 	public GroupedWindowReduceInvokable(ReduceFunction<OUT> reduceFunction, long windowSize,
 			long slideInterval, int keyPosition, TimeStamp<OUT> timestamp) {
 		super(reduceFunction, windowSize, slideInterval, timestamp);
 		this.keyPosition = keyPosition;
-		this.window = new GroupedStreamWindow();
-		this.batch = this.window;
+		this.streamWindows = new HashMap<Object, StreamWindow>();
 	}
-	
-	@Override
-	protected void callUserFunction() throws Exception {	
-		@SuppressWarnings("unchecked")
-		Iterator<Map<Object, OUT>> reducedIterator = (Iterator<Map<Object, OUT>>) batch.getIterator();
-		Map<Object, OUT> reducedValues = reducedIterator.next();
 
-		while (reducedIterator.hasNext()) {
-			Map<Object, OUT> nextValues = reducedIterator.next();
-			for (Entry<Object, OUT> entry : nextValues.entrySet()) {
-				OUT currentValue = reducedValues.get(entry.getKey());
-				if (currentValue == null) {
-					reducedValues.put(entry.getKey(), entry.getValue());
-				} else {
-					reducedValues.put(entry.getKey(), reducer.reduce(currentValue, entry.getValue()));
-				}
-			}
+	@Override
+	protected StreamBatch getBatch(StreamRecord<OUT> next) {
+		Object key = next.getField(keyPosition);
+		StreamWindow window = streamWindows.get(key);
+		if (window == null) {
+			window = new GroupedStreamWindow();
+			window.minibatchCounter = currentMiniBatchCount;
+			streamWindows.put(key, window);
 		}
-		for (OUT value : reducedValues.values()) {
-			collector.collect(value);
+		this.window = window;
+		return window;
+	}
+
+	private void addToAllBuffers() {
+		for (StreamBatch window : streamWindows.values()) {
+			window.addToBuffer();
 		}
 	}
-	
+
+	private void reduceAllWindows() {
+		for (StreamBatch window : streamWindows.values()) {
+			window.minibatchCounter -= batchPerSlide;
+			window.reduceBatch();
+		}
+	}
+
+	@Override
+	protected void reduceLastBatch() throws Exception {
+		for (StreamBatch window : streamWindows.values()) {
+			window.reduceLastBatch();
+		}
+	}
 
 	protected class GroupedStreamWindow extends StreamWindow {
 
 		private static final long serialVersionUID = 1L;
-		private Map<Object, OUT> currentValues;
 
 		public GroupedStreamWindow() {
 			super();
-			this.currentValues  = new HashMap<Object, OUT>();
 		}
 
 		@Override
-		public void reduceToBuffer(StreamRecord<OUT> next) throws Exception {
+		protected synchronized void checkWindowEnd(long timeStamp) {
+			nextRecordTime = timeStamp;
 
-			OUT nextValue = next.getObject();
-			Object key = next.getField(keyPosition);
-			checkBatchEnd(timestamp.getTimestamp(nextValue));
-
-			OUT currentValue = currentValues.get(key);
-			if (currentValue != null) {
-				currentValues.put(key, reducer.reduce(currentValue, nextValue));
-			}else{
-				currentValues.put(key, nextValue);
+			while (miniBatchEnd()) {
+				addToAllBuffers();
+				if (batchEnd()) {
+					reduceAllWindows();
+				}
 			}
-
+			currentMiniBatchCount = this.minibatchCounter;
 		}
-		
-		@Override
-		public boolean miniBatchInProgress() {
-			return !currentValues.isEmpty();
-		};
 
-		@SuppressWarnings("unchecked")
 		@Override
-		protected void addToBuffer() {
-			Map<Object, OUT> reuseMap;
-			
-			if (circularBuffer.isFull()) {
-				reuseMap = (Map<Object, OUT>) circularBuffer.remove();
-				reuseMap.clear();
-			} else {
-				reuseMap = new HashMap<Object, OUT>(currentValues.size());
+		public boolean batchEnd() {
+			if (minibatchCounter == numberOfBatches) {
+				return true;
 			}
-			
-			circularBuffer.add(currentValues);
-			minibatchCounter++;
-			currentValues = reuseMap;
+			return false;
 		}
 
 	}

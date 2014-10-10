@@ -608,7 +608,7 @@ DataSet<String> result = in.rebalance()
     <tr>
       <td><strong>Hash-Partition</strong></td>
       <td>
-        <p>Hash-partitions a data set on a given key. Keys can be specified as key-selector functions or field position keys. Only Map-like transformations may follow a hash-partition transformation. (Java API Only)</p>
+        <p>Hash-partitions a data set on a given key. Keys can be specified as key-selector functions or field position keys.</p>
 {% highlight java %}
 DataSet<Tuple2<String,Integer>> in = // [...]
 DataSet<Integer> result = in.partitionByHash(0)
@@ -807,6 +807,33 @@ data.union(data2)
 {% endhighlight %}
       </td>
     </tr>
+    <tr>
+      <td><strong>Hash-Partition</strong></td>
+      <td>
+        <p>Hash-partitions a data set on a given key. Keys can be specified as key-selector functions, tuple positions
+        or case class fields.</p>
+{% highlight scala %}
+val in: DataSet[(Int, String)] = // [...]
+val result = in.partitionByHash(0).mapPartition { ... }
+{% endhighlight %}
+      </td>
+    </tr>
+    <tr>
+      <td><strong>First-n</strong></td>
+      <td>
+        <p>Returns the first n (arbitrary) elements of a data set. First-n can be applied on a regular data set, a grouped data set, or a grouped-sorted data set. Grouping keys can be specified as key-selector functions,
+        tuple positions or case class fields.</p>
+{% highlight scala %}
+val in: DataSet[(Int, String)] = // [...]
+// regular data set
+val result1 = in.first(3)
+// grouped data set
+val result2 = in.groupBy(0).first(3)
+// grouped-sorted data set
+val result3 = in.groupBy(0).sortGroup(1, Order.ASCENDING).first(3)
+{% endhighlight %}
+      </td>
+    </tr>
   </tbody>
 </table>
 
@@ -844,6 +871,8 @@ you do not need to physically pack the data set types into keys and
 values. Keys are "virtual": they are defined as functions over the
 actual data to guide the grouping operator.
 
+### Define keys for Tuples
+
 The simplest case is grouping a data set of Tuples on one or more
 fields of the Tuple:
 {% highlight java %}
@@ -868,7 +897,75 @@ The data set is grouped on the composite key consisting of the first and the
 second fields, therefore the GroupReduceFuntion will receive groups
 with the same value for both fields.
 
-In general, key definition is done via a "key selector" function, which
+A note on nested Tuples: If you have a DataSet with a nested tuple, such as:
+{% highlight java %}
+DataSet<Tuple3<Tuple2<Integer, Float>,String,Long>> ds;
+{% endhighlight %}
+Specifying `groupBy(0)` will cause the system to use the full `Tuple2` as a key (with the Integer and Float being the key). If you want to "navigate" into the nested `Tuple2`, you have to use a string-based expression, as explained below. For this particular example, you would have to specfiy `f0.f0`.
+
+### Define key using a String Expression
+Starting from release 0.7-incubating, you can use String-based key expressions to select keys.
+
+The String expressions allow to specify the name of the field in a class you want to group by.
+
+In the example below, we have a `WC` POJO with two fields "word" and "count". To group by the field "word", we just pass this name to the `groupBy()` function.
+{% highlight java %}
+// some ordinary POJO (Plain old Java Object)
+public class WC {
+  public String word; 
+  public int count;
+}
+DataSet<WC> words = // [...]
+DataSet<WC> wordCounts = words.groupBy("word").reduce(/*do something*/);
+{% endhighlight %}
+
+**Conditions** for a class to be treated as a POJO by Flink:
+
+- The class must be public
+- It must have a public constructor without arguments
+- All fields either have to be public or there must be getters and setters for all non-public fields. If the field name is `foo` the getter and setters must be called `getFoo()` and `setFoo()`.
+
+**Valid Expressions**:
+
+- You can select POJO fields by their field name
+- You can select Tuple fields by their field name as well. For example `f0` or `f5`.
+- You can select nested fields in POJOs and Tuples. Expressions like `user.zip` or `user.groupId` are valid. Flink also supports POJOs inside Tuples: `f1.user.zip`.
+- You can select all fields at each level. To select all fields, specify `*`. This also works for the nested case: `user.*`.
+
+**Example for nested POJO**
+
+{% highlight java %}
+public static class WC {
+  public ComplexNestedClass complex; //nested POJO
+  private int count;
+  // getter / setter for private field (count)
+  public int getCount() {
+    return count;
+  }
+  public void setCount(int c) {
+    this.count = c;
+  }
+}
+public static class ComplexNestedClass {
+  public Integer someNumber;
+  public float someFloat;
+  public Tuple3<Long, Long, String> word;
+  public IntWritable hadoopCitizen;
+}
+{% endhighlight %}
+
+These are valid expressions for the example POJO above:
+
+- `count`: The count field in the `WC` class.
+- `complex.*`: Selects all fields in the `ComplexNestedClass`.
+- `complex.word.f2`: Selects the last field in the Tuple3.
+- `complex.hadoopCitizen`: Selects a Hadoop-`Writable` type as a key.
+
+Please note that you can only use types inside POJOs that Flink is able to serialize. Currently, we are using [Avro](http://avro.apache.org) to serialize arbitrary objects (such as `Date`).
+
+### Define key using a Key Selector Function
+
+An additional way to define keys are "key selector" functions, which
 takes as argument one dataset element and returns a key of an
 arbitrary data type by performing an arbitrary computation on this
 element. For example:
@@ -1026,8 +1123,7 @@ data.map(new MapFunction<String, Integer> () {
 
 #### Java 8 Lambdas
 
-***Warning: Lambdas are currently only supported for filter and reduce
-   transformations***
+Flink also supports Java 8 Lambdas in the Java API. Please see the full [Java 8 Guide](java8_programming_guide.html).
 
 {% highlight java %}
 DataSet<String> data = // [...]
@@ -1152,7 +1248,7 @@ efficient execution strategies.
 There are four different categories of data types, which are treated slightly different when it
 to [specifying keys](#specifying-keys):
 
-1. **General Types**
+1. **General Types and POJOs**
 2. **Tuples**/**Case Classes**
 3. **Values**
 4. **Hadoop Writables**
@@ -1249,17 +1345,13 @@ wordCounts.map { _.count }
 
 
 When working with operators that require a Key for grouping or matching records
-you need to implement a key selector function for your custom type (see
+you can select the key using a key expression (see
 [Specifying Keys](#specifying-keys)).
 
 <div class="codetabs" markdown="1">
 <div data-lang="java" markdown="1">
 {% highlight java %}
-wordCounts.groupBy(new KeySelector<WordCount, String>() {
-    public String getKey(WordCount v) {
-        return v.word;
-    }
-}).reduce(new MyReduceFunction());
+wordCounts.groupBy("word").reduce(new MyReduceFunction());
 {% endhighlight %}
 </div>
 <div data-lang="scala" markdown="1">
@@ -1301,15 +1393,18 @@ than one position to use composite keys (see [Section Data Transformations](#tra
 
 {% highlight java %}
 wordCounts
-    .groupBy(0)
+    .groupBy(0) // also valid .groupBy("f0")
     .reduce(new MyReduceFunction());
 {% endhighlight %}
+Also, you can "navigate" into nested tuples using (String) key expressions.
 
 In order to access fields more intuitively and to generate more readable code, it is also possible
 to extend a subclass of Tuple. You can add getters and setters with custom names that delegate to
 the field positions. See this
-{% gh_link /flink-examples/flink-java-examples/src/main/java/org/apache/flink/example/java/relational/TPCHQuery3.java "example" %} for an
+{% gh_link /flink-examples/flink-java-examples/src/main/java/org/apache/flink/examples/java/relational/TPCHQuery3.java "example" %} for an
 illustration how to make use of that mechanism.
+
+Note that if you are extending from a Tuple and add fields to your class, it will be treated as a POJO.
 
 </div>
 <div data-lang="scala" markdown="1">

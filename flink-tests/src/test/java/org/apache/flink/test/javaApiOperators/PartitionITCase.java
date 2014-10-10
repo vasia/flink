@@ -36,6 +36,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.test.javaApiOperators.util.CollectionDataSets;
+import org.apache.flink.test.javaApiOperators.util.CollectionDataSets.POJO;
 import org.apache.flink.test.util.JavaProgramTestBase;
 import org.apache.flink.util.Collector;
 import org.junit.runner.RunWith;
@@ -89,7 +90,7 @@ public class PartitionITCase extends JavaProgramTestBase {
 		public static String runProgram(int progId, String resultPath) throws Exception {
 			
 			switch(progId) {
-			case 1: {
+			case 0: {
 				/*
 				 * Test hash partition by key field
 				 */
@@ -111,7 +112,7 @@ public class PartitionITCase extends JavaProgramTestBase {
 						"5\n" +
 						"6\n";
 			}
-			case 2: {
+			case 1: {
 				/*
 				 * Test hash partition by key selector
 				 */
@@ -141,7 +142,7 @@ public class PartitionITCase extends JavaProgramTestBase {
 						"5\n" +
 						"6\n";
 			}
-			case 3: {
+			case 2: {
 				/*
 				 * Test forced rebalancing
 				 */
@@ -192,13 +193,15 @@ public class PartitionITCase extends JavaProgramTestBase {
 				
 				env.execute();
 				
+				StringBuilder result = new StringBuilder();
+				int numPerPartition = 2220 / env.getDegreeOfParallelism() / 10;
+				for (int i = 0; i < env.getDegreeOfParallelism(); i++) {
+					result.append('(').append(i).append(',').append(numPerPartition).append(")\n");
+				}
 				// return expected result
-				return 	"(0,55)\n" +
-						"(1,55)\n" +
-						"(2,55)\n" +
-						"(3,55)\n";
+				return result.toString();
 			}
-			case 4: {
+			case 3: {
 				/*
 				 * Test hash partition by key field and different DOP
 				 */
@@ -208,8 +211,8 @@ public class PartitionITCase extends JavaProgramTestBase {
 				
 				DataSet<Tuple3<Integer, Long, String>> ds = CollectionDataSets.get3TupleDataSet(env);
 				DataSet<Long> uniqLongs = ds
-						.partitionByHash(1)
-						.mapPartition(new UniqueLongMapper()).setParallelism(4);
+						.partitionByHash(1).setParallelism(4)
+						.mapPartition(new UniqueLongMapper());
 				uniqLongs.writeAsText(resultPath);
 				
 				env.execute();
@@ -222,13 +225,34 @@ public class PartitionITCase extends JavaProgramTestBase {
 						"5\n" +
 						"6\n";
 			}
+			case 4: {
+				/*
+				 * Test hash partition with key expression
+				 */
+		
+				final ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
+				env.setDegreeOfParallelism(3);
+				
+				DataSet<POJO> ds = CollectionDataSets.getDuplicatePojoDataSet(env);
+				DataSet<Long> uniqLongs = ds
+						.partitionByHash("nestedPojo.longNumber").setParallelism(4)
+						.mapPartition(new UniqueNestedPojoLongMapper());
+				uniqLongs.writeAsText(resultPath);
+				
+				env.execute();
+				
+				// return expected result
+				return 	"10000\n" +
+						"20000\n" +
+						"30000\n";
+			}
+			
+			
 			
 			default: 
 				throw new IllegalArgumentException("Invalid program id");
 			}
-			
 		}
-	
 	}
 	
 	public static class UniqueLongMapper implements MapPartitionFunction<Tuple3<Integer,Long,String>, Long> {
@@ -246,6 +270,21 @@ public class PartitionITCase extends JavaProgramTestBase {
 		}
 	}
 	
+	public static class UniqueNestedPojoLongMapper implements MapPartitionFunction<POJO, Long> {
+		private static final long serialVersionUID = 1L;
+
+		@Override
+		public void mapPartition(Iterable<POJO> records, Collector<Long> out) throws Exception {
+			HashSet<Long> uniq = new HashSet<Long>();
+			for(POJO t : records) {
+				uniq.add(t.nestedPojo.longNumber);
+			}
+			for(Long l : uniq) {
+				out.collect(l);
+			}
+		}
+	}
+	
 	public static class PartitionIndexMapper extends RichMapFunction<Long, Tuple2<Integer, Integer>> {
 		private static final long serialVersionUID = 1L;
 
@@ -253,7 +292,5 @@ public class PartitionITCase extends JavaProgramTestBase {
 		public Tuple2<Integer, Integer> map(Long value) throws Exception {
 			return new Tuple2<Integer, Integer>(this.getRuntimeContext().getIndexOfThisSubtask(), 1);
 		}
-		
 	}
-	
 }

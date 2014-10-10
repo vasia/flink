@@ -90,6 +90,14 @@ under the License.
 			<artifactId>asm</artifactId>
 			<version>4.0</version>
 		</dependency>
+		
+		<!--  guava needs to be in "provided" scope, to make sure it is not included into the jars by the shading -->
+		<dependency>
+			<groupId>com.google.guava</groupId>
+			<artifactId>guava</artifactId>
+			<version>${guava.version}</version>
+			<scope>provided</scope>
+		</dependency>
 
 		<dependency>
 			<groupId>org.scalatest</groupId>
@@ -97,6 +105,14 @@ under the License.
 			<version>2.2.0</version>
 			<scope>test</scope>
 		</dependency>
+
+		<dependency>
+			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-test-utils</artifactId>
+			<version>${project.version}</version>
+			<scope>test</scope>
+		</dependency>
+
 	</dependencies>
 
 	<build>

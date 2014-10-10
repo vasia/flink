@@ -37,6 +37,18 @@ under the License.
 		<!-- BINARIES -->
 		<dependency>
 			<groupId>org.apache.flink</groupId>
+			<artifactId>flink-shaded</artifactId>
+			<version>${project.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>com.google.guava</groupId>
+					<artifactId>guava</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		
+		<dependency>
+			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-core</artifactId>
 			<version>${project.version}</version>
 		</dependency>
@@ -125,7 +137,7 @@ under the License.
 				</property>
 			</activation>
 			<dependencies>
-				<!-- No extra dependencies: pact-hbase is currently not compatible with Hadoop v1 -->
+				<!-- No extra dependencies: flink-hbase is currently not compatible with Hadoop v1 -->
 			</dependencies>
 		</profile>
 
@@ -293,16 +305,6 @@ under the License.
 											<mapper>
 												<type>perm</type>
 												<prefix>/usr/share/${project.artifactId}/lib</prefix>
-												<user>root</user>
-												<group>root</group>
-											</mapper>
-										</data>
-										<data>
-											<src>${project.build.directory}/${project.artifactId}-${project.version}-bin/flink-${project.version}/lib_clients</src>
-											<type>directory</type>
-											<mapper>
-												<type>perm</type>
-												<prefix>/usr/share/${project.artifactId}/lib_clients</prefix>
 												<user>root</user>
 												<group>root</group>
 											</mapper>

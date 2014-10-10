@@ -17,9 +17,10 @@
  */
 package org.apache.flink.api.scala.codegen
 
+import java.lang.reflect.{Field, Modifier}
+
 import org.apache.flink.api.common.typeinfo.BasicArrayTypeInfo
 import org.apache.flink.api.common.typeinfo.PrimitiveArrayTypeInfo
-import org.apache.flink.api.common.typeinfo.BasicTypeInfo
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo
 
 import org.apache.flink.api.common.typeutils.TypeSerializer
@@ -28,6 +29,9 @@ import org.apache.flink.api.scala.typeutils.{CaseClassSerializer, CaseClassTypeI
 import org.apache.flink.types.Value
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.hadoop.io.Writable
+
+import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 import scala.reflect.macros.Context
 
@@ -41,7 +45,7 @@ private[flink] trait TypeInformationGen[C <: Context] {
 
   // This is for external calling by TypeUtils.createTypeInfo
   def mkTypeInfo[T: c.WeakTypeTag]: c.Expr[TypeInformation[T]] = {
-    val desc = getUDTDescriptor(weakTypeOf[T])
+    val desc = getUDTDescriptor(weakTypeTag[T].tpe)
     val result: c.Expr[TypeInformation[T]] = mkTypeInfo(desc)(c.WeakTypeTag(desc.tpe))
     result
   }
@@ -61,6 +65,7 @@ private[flink] trait TypeInformationGen[C <: Context] {
     case d : WritableDescriptor =>
       mkWritableTypeInfo(d)(c.WeakTypeTag(d.tpe).asInstanceOf[c.WeakTypeTag[Writable]])
         .asInstanceOf[c.Expr[TypeInformation[T]]]
+    case pojo: PojoDescriptor => mkPojo(pojo)
     case d => mkGenericTypeInfo(d)
   }
 
@@ -96,7 +101,7 @@ private[flink] trait TypeInformationGen[C <: Context] {
   def mkListTypeInfo[T: c.WeakTypeTag](desc: ListDescriptor): c.Expr[TypeInformation[T]] = {
     val arrayClazz = c.Expr[Class[T]](Literal(Constant(desc.tpe)))
     val elementClazz = c.Expr[Class[T]](Literal(Constant(desc.elem.tpe)))
-    val elementTypeInfo = mkTypeInfo(desc.elem)
+    val elementTypeInfo = mkTypeInfo(desc.elem)(c.WeakTypeTag(desc.elem.tpe))
     desc.elem match {
       // special case for string, which in scala is a primitive, but not in java
       case p: PrimitiveDescriptor if p.tpe <:< typeOf[String] =>
@@ -115,7 +120,8 @@ private[flink] trait TypeInformationGen[C <: Context] {
         reify {
           ObjectArrayTypeInfo.getInfoFor(
             arrayClazz.splice,
-            elementTypeInfo.splice).asInstanceOf[TypeInformation[T]]
+            elementTypeInfo.splice.asInstanceOf[TypeInformation[_]])
+            .asInstanceOf[TypeInformation[T]]
         }
     }
   }
@@ -133,6 +139,58 @@ private[flink] trait TypeInformationGen[C <: Context] {
     val tpeClazz = c.Expr[Class[T]](Literal(Constant(desc.tpe)))
     reify {
       new WritableTypeInfo[T](tpeClazz.splice)
+    }
+  }
+
+  def mkPojo[T: c.WeakTypeTag](desc: PojoDescriptor): c.Expr[TypeInformation[T]] = {
+    val tpeClazz = c.Expr[Class[T]](Literal(Constant(desc.tpe)))
+    val fieldsTrees = desc.getters map {
+      f =>
+        val name = c.Expr(Literal(Constant(f.name)))
+        val fieldType = mkTypeInfo(f.desc)(c.WeakTypeTag(f.tpe))
+        reify { (name.splice, fieldType.splice) }.tree
+    }
+
+    val fieldsList = c.Expr[List[(String, TypeInformation[_])]](mkList(fieldsTrees.toList))
+
+    reify {
+      val fields =  fieldsList.splice
+      val clazz: Class[T] = tpeClazz.splice
+
+      var traversalClazz: Class[_] = clazz
+      val clazzFields = mutable.Map[String, Field]()
+
+      var error = false
+      while (traversalClazz != null) {
+        for (field <- traversalClazz.getDeclaredFields) {
+          if (clazzFields.contains(field.getName)) {
+            println(s"The field $field is already contained in the " +
+              s"hierarchy of the class ${clazz}. Please use unique field names throughout " +
+              "your class hierarchy")
+            error = true
+          }
+          clazzFields += (field.getName -> field)
+        }
+        traversalClazz = traversalClazz.getSuperclass
+      }
+
+      if (error) {
+        new GenericTypeInfo(clazz)
+      } else {
+        val pojoFields = fields flatMap {
+          case (fName, fTpe) =>
+            val field = clazzFields(fName)
+            if (Modifier.isTransient(field.getModifiers) || Modifier.isStatic(field.getModifiers)) {
+              // ignore transient and static fields
+              // the TypeAnalyzer for some reason does not always detect transient fields
+              None
+            } else {
+              Some(new PojoField(clazzFields(fName), fTpe))
+            }
+        }
+
+        new PojoTypeInfo(clazz, pojoFields.asJava)
+      }
     }
   }
 
@@ -158,39 +216,4 @@ private[flink] trait TypeInformationGen[C <: Context] {
     val result = Apply(Select(New(TypeTree(desc.tpe)), nme.CONSTRUCTOR), fields.toList)
     c.Expr[T](result)
   }
-
-//    def mkCaseClassTypeInfo[T: c.WeakTypeTag](
-//        desc: CaseClassDescriptor): c.Expr[TypeInformation[T]] = {
-//      val tpeClazz = c.Expr[Class[_]](Literal(Constant(desc.tpe)))
-//      val caseFields = mkCaseFields(desc)
-//      reify {
-//        new ScalaTupleTypeInfo[T] {
-//          def createSerializer: TypeSerializer[T] = {
-//            null
-//          }
-//
-//          val fields: Map[String, TypeInformation[_]] = caseFields.splice
-//          val clazz = tpeClazz.splice
-//        }
-//      }
-//    }
-//
-//  private def mkCaseFields(desc: UDTDescriptor): c.Expr[Map[String, TypeInformation[_]]] = {
-//    val fields = getFields("_root_", desc).toList map { case (fieldName, fieldDesc) =>
-//      val nameTree = c.Expr(Literal(Constant(fieldName)))
-//      val fieldTypeInfo = mkTypeInfo(fieldDesc)(c.WeakTypeTag(fieldDesc.tpe))
-//      reify { (nameTree.splice, fieldTypeInfo.splice) }.tree
-//    }
-//
-//    c.Expr(mkMap(fields))
-//  }
-//
-//  protected def getFields(name: String, desc: UDTDescriptor): Seq[(String, UDTDescriptor)] =
-//  desc match {
-//    // Flatten product types
-//    case CaseClassDescriptor(_, _, _, _, getters) =>
-//      getters filterNot { _.isBaseField } flatMap {
-//        f => getFields(name + "." + f.getter.name, f.desc) }
-//    case _ => Seq((name, desc))
-//  }
 }

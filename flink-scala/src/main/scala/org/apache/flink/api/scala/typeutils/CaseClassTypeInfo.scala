@@ -19,8 +19,10 @@ package org.apache.flink.api.scala.typeutils
 
 import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.common.typeinfo.AtomicType
+import org.apache.flink.api.common.typeutils.CompositeType.FlatFieldDescriptor
+import org.apache.flink.api.java.operators.Keys.ExpressionKeys
 import org.apache.flink.api.java.typeutils.TupleTypeInfoBase
-import org.apache.flink.api.common.typeutils.{TypeComparator, TypeSerializer}
+import org.apache.flink.api.common.typeutils.{CompositeType, TypeComparator}
 
 /**
  * TypeInformation for Case Classes. Creation and access is different from
@@ -32,58 +34,111 @@ abstract class CaseClassTypeInfo[T <: Product](
     val fieldNames: Seq[String])
   extends TupleTypeInfoBase[T](clazz, fieldTypes: _*) {
 
-  def createComparator(logicalKeyFields: Array[Int], orders: Array[Boolean]): TypeComparator[T] = {
-    // sanity checks
-    if (logicalKeyFields == null || orders == null
-      || logicalKeyFields.length != orders.length || logicalKeyFields.length > types.length) {
-      throw new IllegalArgumentException
-    }
-
-    // No special handling of leading Key field as in JavaTupleComparator for now
-
-    // --- general case ---
-    var maxKey: Int = -1
-
-    for (key <- logicalKeyFields) {
-      maxKey = Math.max(key, maxKey)
-    }
-
-    if (maxKey >= types.length) {
-      throw new IllegalArgumentException("The key position " + maxKey + " is out of range for " +
-        "Tuple" + types.length)
-    }
-
-    // create the comparators for the individual fields
-    val fieldComparators: Array[TypeComparator[_]] = new Array(logicalKeyFields.length)
-
-    for (i <- 0 until logicalKeyFields.length) {
-      val keyPos = logicalKeyFields(i)
-      if (types(keyPos).isKeyType && types(keyPos).isInstanceOf[AtomicType[_]]) {
-        fieldComparators(i) = types(keyPos).asInstanceOf[AtomicType[_]].createComparator(orders(i))
-      } else {
-        throw new IllegalArgumentException(
-          "The field at position " + i + " (" + types(keyPos) + ") is no atomic key type.")
-      }
-    }
-
-    // create the serializers for the prefix up to highest key position
-    val fieldSerializers: Array[TypeSerializer[_]] = new Array[TypeSerializer[_]](maxKey + 1)
-
-    for (i <- 0 to maxKey) {
-      fieldSerializers(i) = types(i).createSerializer
-    }
-
-    new CaseClassComparator[T](logicalKeyFields, fieldComparators, fieldSerializers)
-  }
-
   def getFieldIndices(fields: Array[String]): Array[Int] = {
-    val result = fields map { x => fieldNames.indexOf(x) }
-    if (result.contains(-1)) {
-      throw new IllegalArgumentException("Fields '" + fields.mkString(", ") +
-        "' are not valid for " + clazz + " with fields '" + fieldNames.mkString(", ") + "'.")
-    }
-    result
+    fields map { x => fieldNames.indexOf(x) }
   }
 
-  override def toString = "Scala " + super.toString
+  /*
+   * Comparator construction
+   */
+  var fieldComparators: Array[TypeComparator[_]] = null
+  var logicalKeyFields : Array[Int] = null
+  var comparatorHelperIndex = 0
+
+  override protected def initializeNewComparator(localKeyCount: Int): Unit = {
+    fieldComparators = new Array(localKeyCount)
+    logicalKeyFields = new Array(localKeyCount)
+    comparatorHelperIndex = 0
+  }
+
+  override protected def addCompareField(fieldId: Int, comparator: TypeComparator[_]): Unit = {
+    fieldComparators(comparatorHelperIndex) = comparator
+    logicalKeyFields(comparatorHelperIndex) = fieldId
+    comparatorHelperIndex += 1
+  }
+
+  override protected def getNewComparator: TypeComparator[T] = {
+    val finalLogicalKeyFields = logicalKeyFields.take(comparatorHelperIndex)
+    val finalComparators = fieldComparators.take(comparatorHelperIndex)
+    val maxKey = finalLogicalKeyFields.max
+
+    // create serializers only up to the last key, fields after that are not needed
+    val fieldSerializers = types.take(maxKey + 1).map(_.createSerializer)
+    new CaseClassComparator[T](finalLogicalKeyFields, finalComparators, fieldSerializers.toArray)
+  }
+
+  override def getKey(
+      fieldExpression: String,
+      offset: Int,
+      result: java.util.List[FlatFieldDescriptor]): Unit = {
+
+    if (fieldExpression == ExpressionKeys.SELECT_ALL_CHAR) {
+      var keyPosition = 0
+      for (tpe <- types) {
+        tpe match {
+          case a: AtomicType[_] =>
+            result.add(new CompositeType.FlatFieldDescriptor(offset + keyPosition, tpe))
+
+          case co: CompositeType[_] =>
+            co.getKey(ExpressionKeys.SELECT_ALL_CHAR, offset + keyPosition, result)
+            keyPosition += co.getTotalFields - 1
+
+          case _ => throw new RuntimeException(s"Unexpected key type: $tpe")
+
+        }
+        keyPosition += 1
+      }
+      return
+    }
+
+    if (fieldExpression == null || fieldExpression.length <= 0) {
+      throw new IllegalArgumentException("Field expression must not be empty.")
+    }
+
+    fieldExpression.split('.').toList match {
+      case headField :: Nil =>
+        var fieldId = 0
+        for (i <- 0 until fieldNames.length) {
+          fieldId += types(i).getTotalFields - 1
+
+          if (fieldNames(i) == headField) {
+            if (fieldTypes(i).isInstanceOf[CompositeType[_]]) {
+              throw new IllegalArgumentException(
+                s"The specified field '$fieldExpression' is refering to a composite type.\n"
+                + s"Either select all elements in this type with the " +
+                  s"'${ExpressionKeys.SELECT_ALL_CHAR}' operator or specify a field in" +
+                  s" the sub-type")
+            }
+            result.add(new CompositeType.FlatFieldDescriptor(offset + fieldId, fieldTypes(i)))
+            return
+          }
+
+          fieldId += 1
+        }
+      case firstField :: rest =>
+        var fieldId = 0
+        for (i <- 0 until fieldNames.length) {
+
+          if (fieldNames(i) == firstField) {
+            fieldTypes(i) match {
+              case co: CompositeType[_] =>
+                co.getKey(rest.mkString("."), offset + fieldId, result)
+                return
+
+              case _ =>
+                throw new RuntimeException(s"Field ${fieldTypes(i)} is not a composite type.")
+
+            }
+          }
+
+          fieldId += types(i).getTotalFields
+        }
+    }
+
+    throw new RuntimeException(s"Unable to find field $fieldExpression in type $this.")
+  }
+
+  override def toString = clazz.getSimpleName + "(" + fieldNames.zip(types).map {
+    case (n, t) => n + ": " + t}
+    .mkString(", ") + ")"
 }

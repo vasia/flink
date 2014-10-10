@@ -21,7 +21,6 @@ import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.invokable.util.DefaultTimeStamp;
 import org.apache.flink.streaming.api.invokable.util.TimeStamp;
-import org.apache.flink.streaming.api.streamrecord.StreamRecord;
 
 public class WindowReduceInvokable<OUT> extends BatchReduceInvokable<OUT> {
 	private static final long serialVersionUID = 1L;
@@ -35,8 +34,16 @@ public class WindowReduceInvokable<OUT> extends BatchReduceInvokable<OUT> {
 		super(reduceFunction, windowSize, slideInterval);
 		this.timestamp = timestamp;
 		this.startTime = timestamp.getStartTime();
+	}
+
+	@Override
+	public void open(Configuration config) throws Exception {
+		super.open(config);
 		this.window = new StreamWindow();
 		this.batch = this.window;
+		if (timestamp instanceof DefaultTimeStamp) {
+			(new TimeCheck()).start();
+		}
 	}
 
 	protected class StreamWindow extends StreamBatch {
@@ -49,19 +56,18 @@ public class WindowReduceInvokable<OUT> extends BatchReduceInvokable<OUT> {
 		}
 
 		@Override
-		public void reduceToBuffer(StreamRecord<OUT> next) throws Exception {
-			OUT nextValue = next.getObject();
-			
-			checkBatchEnd(timestamp.getTimestamp(nextValue));
-			
+		public void reduceToBuffer(OUT nextValue) throws Exception {
+
+			checkWindowEnd(timestamp.getTimestamp(nextValue));
+
 			if (currentValue != null) {
-				currentValue = reducer.reduce(currentValue, nextValue);
+				currentValue = reducer.reduce(serializer.copy(currentValue), serializer.copy(nextValue));
 			} else {
 				currentValue = nextValue;
 			}
 		}
 
-		protected synchronized void checkBatchEnd(long timeStamp) {
+		protected synchronized void checkWindowEnd(long timeStamp) {
 			nextRecordTime = timeStamp;
 
 			while (miniBatchEnd()) {
@@ -93,14 +99,6 @@ public class WindowReduceInvokable<OUT> extends BatchReduceInvokable<OUT> {
 
 	}
 
-	@Override
-	public void open(Configuration config) throws Exception {
-		super.open(config);
-		if (timestamp instanceof DefaultTimeStamp) {
-			(new TimeCheck()).start();
-		}
-	}
-
 	private class TimeCheck extends Thread {
 		@Override
 		public void run() {
@@ -110,7 +108,7 @@ public class WindowReduceInvokable<OUT> extends BatchReduceInvokable<OUT> {
 				} catch (InterruptedException e) {
 				}
 				if (isRunning) {
-					window.checkBatchEnd(System.currentTimeMillis());
+					window.checkWindowEnd(System.currentTimeMillis());
 				} else {
 					break;
 				}

@@ -24,9 +24,9 @@ import com.google.common.base.Preconditions;
 import java.util.List;
 
 import org.apache.flink.api.common.io.OutputFormat;
+import org.apache.flink.api.common.operators.GenericDataSinkBase;
 import org.apache.flink.api.common.operators.Operator;
 import org.apache.flink.api.common.operators.UnaryOperatorInformation;
-import org.apache.flink.api.common.operators.base.GenericDataSinkBase;
 import org.apache.flink.api.common.operators.util.UserCodeClassWrapper;
 import org.apache.flink.api.common.typeinfo.NothingTypeInfo;
 import org.apache.flink.api.java.typeutils.RecordTypeInfo;
@@ -34,9 +34,16 @@ import org.apache.flink.types.Nothing;
 import org.apache.flink.types.Record;
 
 /**
+ * 
+ * <b>NOTE: The Record API is marked as deprecated. It is not being developed anymore and will be removed from
+ * the code at some point.
+ * See <a href="https://issues.apache.org/jira/browse/FLINK-1106">FLINK-1106</a> for more details.</b>
+ * 
  * Operator for nodes that act as data sinks, storing the data they receive.
  * The way the data is stored is handled by the {@link OutputFormat}.
  */
+
+@Deprecated
 public class GenericDataSink extends GenericDataSinkBase<Record> {
 
 	private static String DEFAULT_NAME = "<Unnamed Generic Record Data Sink>";

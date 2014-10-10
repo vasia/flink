@@ -26,13 +26,12 @@ import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.core.memory.MemorySegment;
 
+@SuppressWarnings("rawtypes")
 public class IntListComparator extends TypeComparator<IntList> {
 	
 	private static final long serialVersionUID = 1L;
 	
 	private int reference;
-
-	private Comparable[] extractedKey = new Comparable[1];
 
 	private final TypeComparator[] comparators = new TypeComparator[] {new IntComparator(true)};
 
@@ -141,12 +140,12 @@ public class IntListComparator extends TypeComparator<IntList> {
 	}
 
 	@Override
-	public Object[] extractKeys(IntList record) {
-		extractedKey[0] = record.getKey();
-		return extractedKey;
+	public int extractKeys(Object record, Object[] target, int index) {
+		target[index] = (Comparable) record;
+		return 1;
 	}
 
-	@Override public TypeComparator[] getComparators() {
+	@Override public TypeComparator[] getFlatComparators() {
 		return comparators;
 	}
 

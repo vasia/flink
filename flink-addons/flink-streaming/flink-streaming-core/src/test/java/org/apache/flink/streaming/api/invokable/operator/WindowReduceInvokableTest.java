@@ -44,9 +44,9 @@ public class WindowReduceInvokableTest {
 		inputs.add(10);
 		inputs.add(11);
 		inputs.add(11);
-		//1,2,3,4-3,4,5,6-5,6,7,8-7,8,9,10-9,10,11
-		//12-12-5-10-32
-		
+		// 1,2,3,4-3,4,5,6-5,6,7,8-7,8,9,10-9,10,11
+		// 12-12-5-10-32
+
 		List<Integer> expected = new ArrayList<Integer>();
 		expected.add(12);
 		expected.add(12);
@@ -54,7 +54,6 @@ public class WindowReduceInvokableTest {
 		expected.add(10);
 		expected.add(32);
 
-		
 		WindowReduceInvokable<Integer> invokable = new WindowReduceInvokable<Integer>(
 				new ReduceFunction<Integer>() {
 					private static final long serialVersionUID = 1L;
@@ -77,7 +76,6 @@ public class WindowReduceInvokableTest {
 					}
 				});
 
-		
 		assertEquals(expected, MockInvokable.createAndExecute(invokable, inputs));
 
 		List<Tuple2<String, Integer>> inputs2 = new ArrayList<Tuple2<String, Integer>>();
@@ -89,14 +87,13 @@ public class WindowReduceInvokableTest {
 		inputs2.add(new Tuple2<String, Integer>("a", 7));
 		inputs2.add(new Tuple2<String, Integer>("b", 9));
 		inputs2.add(new Tuple2<String, Integer>("b", 10));
-		
+
 		List<Tuple2<String, Integer>> expected2 = new ArrayList<Tuple2<String, Integer>>();
 		expected2.add(new Tuple2<String, Integer>("a", 3));
 		expected2.add(new Tuple2<String, Integer>("b", 4));
 		expected2.add(new Tuple2<String, Integer>("b", 5));
 		expected2.add(new Tuple2<String, Integer>("a", 7));
 		expected2.add(new Tuple2<String, Integer>("b", 10));
-
 
 		GroupedWindowReduceInvokable<Tuple2<String, Integer>> invokable2 = new GroupedWindowReduceInvokable<Tuple2<String, Integer>>(
 				new ReduceFunction<Tuple2<String, Integer>>() {
@@ -120,7 +117,6 @@ public class WindowReduceInvokableTest {
 						return 1;
 					}
 				});
-
 
 		List<Tuple2<String, Integer>> actual2 = MockInvokable.createAndExecute(invokable2, inputs2);
 		assertEquals(new HashSet<Tuple2<String, Integer>>(expected2),
