@@ -17,7 +17,7 @@ public class PreprocessEdges {
 		
 		final ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 		
-		DataSet<Tuple2<Long, Long>> inEdges = env.readCsvFile(args[0]).fieldDelimiter(' ')
+		DataSet<Tuple2<Long, Long>> inEdges = env.readCsvFile(args[0]).fieldDelimiter('\t')
 				.types(Long.class, Long.class);
 		@SuppressWarnings("serial")
 		DataSet<Tuple3<Long, Long, Double>> result = inEdges.flatMap(new FlatMapFunction<Tuple2<Long,Long>, 
@@ -28,7 +28,7 @@ public class PreprocessEdges {
 							Collector<Tuple3<Long, Long, Double>> out)
 							throws Exception {
 						out.collect(new Tuple3<Long, Long, Double>(value.f0, value.f1, new Double(0.0)));
-//						out.collect(new Tuple3<Long, Long, Double>(value.f1, value.f0, new Double(0.0)));
+						out.collect(new Tuple3<Long, Long, Double>(value.f1, value.f0, new Double(0.0)));
 					}
 		});
 		
