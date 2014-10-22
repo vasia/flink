@@ -64,7 +64,7 @@ public class SpearmanRank {
 								long i = 1L;
 								
 								for (Tuple3<Long, Double, Long> v : values) {
-									if(i < numberOfVertices) {
+									if(i < (numberOfVertices + 1)) {
 										out.collect(new Tuple3<Long, Double, Long>(v.f0, v.f1, i));
 										i++;
 									}
@@ -129,7 +129,7 @@ public class SpearmanRank {
 								long i = 1L;
 								
 								for (Tuple3<Long, Double, Long> v : values) {
-									if(i < numberOfVertices) {
+									if(i < (numberOfVertices + 1)) {
 										out.collect(new Tuple3<Long, Double, Long>(v.f0, v.f1, i));
 										i++;
 									}
@@ -176,11 +176,24 @@ public class SpearmanRank {
 		
 		
 		
-//		// store semimetric with Spearman ranks
-//		semimetricWithMeanRank.writeAsCsv(args[2], "\n", "\t");
-//		
-//		// store non-semimetric with Spearman ranks
-//		noTrianglesWithMeanRank.writeAsCsv(args[3], "\n", "\t");
+		// store semimetric with Spearman ranks
+		semimetricWithSpearmanRank.writeAsCsv(args[2], "\n", "\t");
+		
+		// store non-semimetric with Spearman ranks
+		noTrianglesWithSpearmanRank.writeAsCsv(args[3], "\n", "\t");
+		
+		
+		// count how many common ids exist in both datasets
+		DataSet<Tuple1<Long>> commonIds = semimetricWithSpearmanRank.join(noTrianglesWithSpearmanRank)
+				.where(0).equalTo(0).with(new FlatJoinFunction<Tuple3<Long,Double,Long>, Tuple3<Long,Double,Long>, 
+						Tuple1<Long>>() {
+							public void join(Tuple3<Long, Double, Long> first, Tuple3<Long, Double, Long> second,
+									Collector<Tuple1<Long>> out) {
+								out.collect(new Tuple1<Long>(1L));
+							}
+				}).groupBy(0).sum(0);
+		
+		commonIds.print();
 		
 		// compute the Spearman correlation coefficient
 		DataSet<Tuple1<Double>> spearman  = semimetricWithMeanRank.join(noTrianglesWithMeanRank)
