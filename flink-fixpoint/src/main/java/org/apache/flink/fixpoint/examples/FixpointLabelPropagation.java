@@ -13,6 +13,7 @@ import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.fixpoint.api.FixedPointIteration;
 import org.apache.flink.fixpoint.api.StepFunction;
+import org.apache.flink.fixpoint.util.ExecutionMode;
 import org.apache.flink.util.Collector;
 
 
@@ -23,17 +24,17 @@ public class FixpointLabelPropagation implements ProgramDescription {
 		
 		if (args.length < 7) {
 			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <number-of-labels> "
-					+ "<max-iterations> <execution-mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
-					+ "<numParameters> <avg-node-degree>");
+					+ "<numParameters> <avg-node-degree>"
+					+ "<max-iterations> <execution-mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>");
 			return;
 		}
 		
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 		
 		final int numLabels = Integer.parseInt(args[3]);
-		final int maxIterations = Integer.parseInt(args[4]);
-		final int numParameters = Integer.parseInt(args[6]);
-		final double avgNodeDegree = Double.parseDouble(args[7]);
+		final int maxIterations = Integer.parseInt(args[6]);
+		final int numParameters = Integer.parseInt(args[4]);
+		final double avgNodeDegree = Double.parseDouble(args[5]);
 		
 		// initialize vertices with random labels
 		@SuppressWarnings("serial")
@@ -50,7 +51,8 @@ public class FixpointLabelPropagation implements ProgramDescription {
 				Double.class); 
 	
 		DataSet<Tuple2<Long, Integer>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
-				new MostFrequentLabel(), maxIterations, args[5], numParameters, avgNodeDegree));
+				new MostFrequentLabel(), maxIterations, ExecutionMode.parseExecutionModeArgs(args[7]), 
+				numParameters, avgNodeDegree));
 
 		result.writeAsText(args[2]);
 		env.execute("Fixed Point Label Propagation");

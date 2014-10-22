@@ -3,22 +3,23 @@ package org.apache.flink.fixpoint.api;
 import org.apache.commons.lang3.Validate;
 import org.apache.flink.api.common.aggregators.LongSumAggregator;
 import org.apache.flink.api.common.functions.FlatMapFunction;
+import org.apache.flink.api.common.functions.RichFlatMapFunction;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.DataSet;
-import org.apache.flink.api.java.DeltaIteration;
-import org.apache.flink.api.java.IterativeDataSet;
-import org.apache.flink.api.java.functions.RichFlatMapFunction;
 import org.apache.flink.api.java.operators.CustomUnaryOperation;
+import org.apache.flink.api.java.operators.DeltaIteration;
 import org.apache.flink.api.java.operators.FlatMapOperator;
+import org.apache.flink.api.java.operators.IterativeDataSet;
 import org.apache.flink.api.java.tuple.Tuple1;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import org.apache.flink.api.java.typeutils.TupleTypeInfo;
-import org.apache.flink.api.java.typeutils.BasicTypeInfo;
+import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.types.LongValue;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.types.TypeInformation;
+import org.apache.flink.fixpoint.util.ExecutionMode;
 import org.apache.flink.util.Collector;
 
 /**
@@ -43,7 +44,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	private final StepFunction<K, V, E> stepFunction;
 	private final int maxIterations;
 	private String name;
-	private static String execMode = "COST_MODEL";	// default value
+	private static ExecutionMode execMode;	// default value
 	
 	private static final String UPDATED_ELEMENTS_AGGR = "updated.elements.aggr";
 	private static int iterationsElapsed;
@@ -51,7 +52,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	 
 	
 	private FixedPointIteration(DataSet<Tuple3<K, K, E>> dependenciesWithWeight, StepFunction<K, V, E> stepFunction, 
-			int maxIterations, String mode, int numParameters, double avgNodeDegree) {
+			int maxIterations, ExecutionMode mode, int numParameters, double avgNodeDegree) {
 
 		Validate.notNull(dependenciesWithWeight);
 		Validate.isTrue(maxIterations > 0, "The maximum number of iterations must be at least one.");
@@ -71,12 +72,12 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		this.stepFunction  = stepFunction;
 		this.numberOfParameters =  numParameters; // parametersInput.count()
 		this.avgNodeDegree = avgNodeDegree; // dependenciesWithInput.count() / numberOfParameters
-		this.execMode = mode != null ? mode : "COST_MODEL";		
+		FixedPointIteration.execMode = mode != null ? mode : ExecutionMode.COST_MODEL;
 
 	}
 	
 	private FixedPointIteration(DataSet<Tuple2<K, K>> dependenciesWithoutWeight, StepFunction<K, V, E> stepFunction, 
-			int maxIterations, String mode, int numParameters, double avgNodeDegree, boolean noDepepndencyWeight) {
+			int maxIterations, ExecutionMode mode, int numParameters, double avgNodeDegree, boolean noDepepndencyWeight) {
 		
 		Validate.notNull(dependenciesWithoutWeight);
 		Validate.isTrue(maxIterations > 0, "The maximum number of iterations must be at least one.");
@@ -96,7 +97,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		this.stepFunction  = stepFunction;
 		this.numberOfParameters = numParameters; // verticesInput.count()
 		this.avgNodeDegree = avgNodeDegree; // edgesInput.count() / numberOfVertices
-		this.execMode = mode != null ? mode : "COST_MODEL";
+		FixedPointIteration.execMode = mode != null ? mode : ExecutionMode.COST_MODEL;
 	}
 
 	
@@ -175,19 +176,19 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 		 * Check whether the execution type has been defined
 		 */
 		switch (execMode) {
-		case "BULK":
+		case BULK:
 			DataSet<Tuple2<K, V>> bulkResult = doBulkIteration(name, stepFunctionInputTypeWithWeight, stepFunctionInputTypeWithoutWeight,
 					parameterTypeInfo);
 			return bulkResult;
-		case "INCREMENTAL":
+		case INCREMENTAL:
 			DataSet<Tuple2<K, V>> incrResult = doIncrementalIteration(name, stepFunctionInputTypeWithWeight, stepFunctionInputTypeWithoutWeight,
 					parameterTypeInfo);
 			return incrResult;
-		case "DELTA":
+		case DELTA:
 			DataSet<Tuple2<K, V>> deltaResult = doDeltaIteration(name, stepFunctionInputTypeWithWeight, stepFunctionInputTypeWithoutWeight,
 					parameterTypeInfo);
 			return deltaResult;
-		case "COST_MODEL":
+		case COST_MODEL:
 			/**
 			 * Start with a bulk iteration
 			 */
@@ -456,7 +457,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	public static final <K, V> FixedPointIteration<K, V, Object> withPlainDependencies(
 					DataSet<Tuple2<K, K>> dependenciesWithoutWeight,
 						StepFunction<K, V, Object> stepFunction,
-						int maximumNumberOfIterations, String mode, int numParameters, double avgNodeDegree)
+						int maximumNumberOfIterations, ExecutionMode mode, int numParameters, double avgNodeDegree)
 	{		
 		return new FixedPointIteration<K, V, Object>(dependenciesWithoutWeight, stepFunction, 
 				maximumNumberOfIterations, mode, numParameters, avgNodeDegree, true);
@@ -477,7 +478,7 @@ public class FixedPointIteration<K, V, E> implements CustomUnaryOperation<Tuple2
 	public static final <K, V, E> FixedPointIteration<K, V, E> withWeightedDependencies(
 					DataSet<Tuple3<K, K, E>> dependenciesWithWeight,
 					StepFunction<K, V, E> stepFunction,
-					int maximumNumberOfIterations, String mode, int numParameters, double avgNodeDegree)
+					int maximumNumberOfIterations, ExecutionMode mode, int numParameters, double avgNodeDegree)
 	{
 		return new FixedPointIteration<K, V, E>(dependenciesWithWeight, stepFunction, maximumNumberOfIterations, mode,
 				numParameters, avgNodeDegree);

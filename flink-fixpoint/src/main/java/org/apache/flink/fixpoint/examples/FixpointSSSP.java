@@ -2,6 +2,7 @@ package org.apache.flink.fixpoint.examples;
 
 import org.apache.flink.fixpoint.api.FixedPointIteration;
 import org.apache.flink.fixpoint.api.StepFunction;
+import org.apache.flink.fixpoint.util.ExecutionMode;
 import org.apache.flink.util.Collector;
 import org.apache.flink.api.common.ProgramDescription;
 import org.apache.flink.api.common.functions.FlatMapFunction;
@@ -19,13 +20,14 @@ public class FixpointSSSP implements ProgramDescription {
 	public static void main(String... args) throws Exception {
 		if (args.length < 8) {
 			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <max_iterations> "
-					+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
-					+ " <numParameters> <avg-node-degree> <SrcID>");
+					+ " <numParameters> <avg-node-degree> <SrcID> "
+					+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>");
+					
 			return;
 		}
 		
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
-		final long SRC_ID = Long.parseLong(args[7]);
+		final long SRC_ID = Long.parseLong(args[6]);
 		
 		DataSet<Tuple2<Long, Long>> vertices = env.readCsvFile(args[0]).types(Long.class)
 				.map(new MapFunction<Tuple1<Long>, Tuple2<Long, Long>>() {
@@ -61,11 +63,12 @@ public class FixpointSSSP implements ProgramDescription {
 				});
 		
 		final int maxIterations = Integer.parseInt(args[3]);
-		final int numParameters = Integer.parseInt(args[5]);
-		final double avgNodeDegree = Double.parseDouble(args[6]);
+		final int numParameters = Integer.parseInt(args[4]);
+		final double avgNodeDegree = Double.parseDouble(args[5]);
 		
 		DataSet<Tuple2<Long, Long>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
-				new ShortestPath(), maxIterations, args[4], numParameters, avgNodeDegree));
+				new ShortestPath(), maxIterations, ExecutionMode.parseExecutionModeArgs(args[7]), 
+				numParameters, avgNodeDegree));
 
 		result.writeAsText(args[2]);
 		env.execute("Fixed Point SSSP");

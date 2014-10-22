@@ -4,10 +4,10 @@ import java.util.HashMap;
 
 import org.apache.flink.api.common.ProgramDescription;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.RichGroupReduceFunction;
+import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
-import org.apache.flink.api.java.functions.RichGroupReduceFunction;
-import org.apache.flink.api.java.functions.RichMapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
@@ -15,6 +15,7 @@ import org.apache.flink.api.java.tuple.Tuple5;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.fixpoint.api.FixedPointIteration;
 import org.apache.flink.fixpoint.api.StepFunction;
+import org.apache.flink.fixpoint.util.ExecutionMode;
 import org.apache.flink.util.Collector;
 
 public class FixpointHashMapCommunityDetection implements ProgramDescription {
@@ -26,8 +27,8 @@ public class FixpointHashMapCommunityDetection implements ProgramDescription {
 		
 		if (args.length < 7) {
 			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <delta> <max_iterations>"
-					+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
-					+ " <numParameters> <avg-node-degree>");
+					+ " <numParameters> <avg-node-degree>"
+					+ " <execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>");
 			return;
 		}
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
@@ -48,12 +49,13 @@ public class FixpointHashMapCommunityDetection implements ProgramDescription {
 		
 		delta = Double.parseDouble(args[3]);
 		final int maxIterations = Integer.parseInt(args[4]);
-		final int numParameters = Integer.parseInt(args[6]);
-		final double avgNodeDegree = Double.parseDouble(args[7]);
+		final int numParameters = Integer.parseInt(args[5]);
+		final double avgNodeDegree = Double.parseDouble(args[6]);
 
 	
 		DataSet<Tuple2<Long, Tuple2<Long, Double>>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
-				new ComputeCommunities(), maxIterations, args[5], numParameters, avgNodeDegree));
+				new ComputeCommunities(), maxIterations, ExecutionMode.parseExecutionModeArgs(args[7]), 
+				numParameters, avgNodeDegree));
 
 		result.writeAsText(args[2]);
 		env.execute("Fixed Point Community Detection (HashMap implementation)");

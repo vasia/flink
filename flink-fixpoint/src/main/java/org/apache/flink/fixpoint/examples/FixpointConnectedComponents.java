@@ -10,6 +10,7 @@ import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.fixpoint.api.FixedPointIteration;
 import org.apache.flink.fixpoint.api.StepFunction;
+import org.apache.flink.fixpoint.util.ExecutionMode;
 import org.apache.flink.api.common.functions.MapFunction;
 
 
@@ -20,8 +21,8 @@ public class FixpointConnectedComponents implements ProgramDescription {
 		
 		if (args.length < 7) {
 			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <max_iterations> "
-					+ "<execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
-					+ " <numParameters> <avg-node-degree>");
+					+ " <numParameters> <avg-node-degree>"
+					+ " <execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>");
 			return;
 		}
 		
@@ -49,11 +50,12 @@ public class FixpointConnectedComponents implements ProgramDescription {
 				});
 		
 		final int maxIterations = Integer.parseInt(args[3]);
-		final int numParameters = Integer.parseInt(args[5]);
-		final double avgNodeDegree = Double.parseDouble(args[6]);
+		final int numParameters = Integer.parseInt(args[4]);
+		final double avgNodeDegree = Double.parseDouble(args[5]);
 	
 		DataSet<Tuple2<Long, Long>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
-				new MinId(), maxIterations, args[4], numParameters, avgNodeDegree));
+				new MinId(), maxIterations, ExecutionMode.parseExecutionModeArgs(args[6]), 
+				numParameters, avgNodeDegree));
 
 		result.writeAsText(args[2]);
 		env.execute("Fixed Point Connected Components");

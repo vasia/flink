@@ -11,6 +11,7 @@ import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.fixpoint.api.FixedPointIteration;
 import org.apache.flink.fixpoint.api.StepFunction;
+import org.apache.flink.fixpoint.util.ExecutionMode;
 
 
 public class FixpointSimpleRageRank implements ProgramDescription {
@@ -19,14 +20,14 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 		
 		if (args.length < 7) {
 			System.err.println("Parameters: <vertices-path> <edges-path> <result-path> <max_iterations>"
-					+ " <execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>"
-					+ " <numParameters> <avg-node-degree>");
+					+ " <numParameters> <avg-node-degree>" 
+					+ " <execution_mode (BULK / INCREMENTAL / DELTA / COST_MODEL (optional)>");
 			return;
 		}
 		
 		final int maxIterations = Integer.parseInt(args[3]);
-		final int numParameters = Integer.parseInt(args[5]);
-		final double avgNodeDegree = Double.parseDouble(args[6]);
+		final int numParameters = Integer.parseInt(args[4]);
+		final double avgNodeDegree = Double.parseDouble(args[5]);
 		
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 		
@@ -44,7 +45,8 @@ public class FixpointSimpleRageRank implements ProgramDescription {
 				Long.class); 
 		
 		DataSet<Tuple2<Long, Double>> result = vertices.runOperation(FixedPointIteration.withWeightedDependencies(edges, 
-				new UpdateRanks(), maxIterations, args[4], numParameters, avgNodeDegree));
+				new UpdateRanks(), maxIterations, ExecutionMode.parseExecutionModeArgs(args[6]), 
+				numParameters, avgNodeDegree));
 
 		result.writeAsText(args[2]);
 		env.execute("Fixed Point Simple PageRank");
