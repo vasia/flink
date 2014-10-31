@@ -184,16 +184,16 @@ public class SpearmanRank {
 		
 		
 		// count how many common ids exist in both datasets
-		DataSet<Tuple1<Long>> commonIds = semimetricWithSpearmanRank.join(noTrianglesWithSpearmanRank)
-				.where(0).equalTo(0).with(new FlatJoinFunction<Tuple3<Long,Double,Long>, Tuple3<Long,Double,Long>, 
-						Tuple1<Long>>() {
-							public void join(Tuple3<Long, Double, Long> first, Tuple3<Long, Double, Long> second,
-									Collector<Tuple1<Long>> out) {
-								out.collect(new Tuple1<Long>(1L));
-							}
-				}).groupBy(0).sum(0);
-		
-		commonIds.print();
+//		DataSet<Tuple1<Long>> commonIds = semimetricWithSpearmanRank.join(noTrianglesWithSpearmanRank)
+//				.where(0).equalTo(0).with(new FlatJoinFunction<Tuple3<Long,Double,Long>, Tuple3<Long,Double,Long>, 
+//						Tuple1<Long>>() {
+//							public void join(Tuple3<Long, Double, Long> first, Tuple3<Long, Double, Long> second,
+//									Collector<Tuple1<Long>> out) {
+//								out.collect(new Tuple1<Long>(1L));
+//							}
+//				}).groupBy(0).sum(0);
+//		
+//		commonIds.print();
 		
 		// compute the Spearman correlation coefficient
 		DataSet<Tuple1<Double>> spearman  = semimetricWithMeanRank.join(noTrianglesWithMeanRank)
