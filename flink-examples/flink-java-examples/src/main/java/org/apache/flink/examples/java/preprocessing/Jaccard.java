@@ -1,5 +1,6 @@
 package org.apache.flink.examples.java.preprocessing;
 
+import org.apache.flink.api.common.ProgramDescription;
 import org.apache.flink.api.common.functions.FlatJoinFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -21,13 +22,13 @@ import org.apache.flink.util.Collector;
  * over their total number of neighbors. 
  *
  */
-public class Jaccard {
+public class Jaccard implements ProgramDescription {
 
 	@SuppressWarnings("serial")
 	public static void main(String[] args) throws Exception {
 		if (args.length < 2) {
 			System.err.println("Usage: Jaccard <input-file-path> <output-file-path>");
-			System.exit(-1);
+			return;
 		}
 		
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
@@ -53,14 +54,12 @@ public class Jaccard {
 				.types(Long.class, Long.class, Long.class);
 		
 		// remove non-existing edges
-		DataSet<Tuple3<Long, Long, Long>> commonNeighbors = commonNeighborCandidates.join(edges)
-				.where(0, 1).equalTo(0, 1).projectFirst(0, 1, 2).types(Long.class, Long.class, Long.class);
+		DataSet<Tuple2<Long, Long>> commonNeighbors = commonNeighborCandidates.join(edges)
+				.where(0, 1).equalTo(0, 1).projectFirst(0, 1).types(Long.class, Long.class);
 		
 		// <src, trg, common_neighbor_count>
 		DataSet<Tuple3<Long, Long, Long>> edgesWithCounts = commonNeighbors.map(
 				new AddOneCountMapper()).groupBy(0, 1).sum(2);
-		
-//		edgesWithCounts.print();
 		
 		// Compute the Jaccard similarity
 		// attach the src's degree to the edge
@@ -73,20 +72,21 @@ public class Jaccard {
 						Long.class, Long.class, Long.class).map(new ComputeJaccardMapper());
 							
 		edgesWithJaccard.writeAsCsv(args[1], "\n", "\t");
+
 		env.execute();
 	}
 	
 	@SuppressWarnings("serial")
-//	@ConstantFields("0")
-	private static final class AddOneCountMapper implements MapFunction<Tuple3<Long,Long,Long>, 
+//	@ConstantFields("0 -> 0; 1 -> 1")
+	private static final class AddOneCountMapper implements MapFunction<Tuple2<Long, Long>, 
 		Tuple3<Long, Long, Long>> {
-		public Tuple3<Long, Long, Long> map(Tuple3<Long, Long, Long> value) {
-			return new Tuple3<Long, Long, Long>(value.f0, value.f2, 1L);
+		public Tuple3<Long, Long, Long> map(Tuple2<Long, Long> value) {
+			return new Tuple3<Long, Long, Long>(value.f0, value.f1, 1L);
 		}
 	}
 	
 	@SuppressWarnings("serial")
-	@ConstantFieldsFirst("0->0")
+	@ConstantFieldsFirst("0 -> 0")
 	private static final class FlatJoinWithCount implements FlatJoinFunction<Tuple1<Long>, 
 		Tuple2<Long,Long>, Tuple2<Long, Long>> {
 		public void join(Tuple1<Long> first, Tuple2<Long, Long> second,
@@ -96,7 +96,7 @@ public class Jaccard {
 	}
 	
 	@SuppressWarnings("serial")
-	@ConstantFields("0->0;1->1")
+	@ConstantFields("0 -> 0 ; 1 -> 1")
 	private static final class ComputeJaccardMapper implements MapFunction<Tuple5<Long,Long,Long,Long,Long>, 
 		Tuple3<Long, Long, Double>> {
 		public Tuple3<Long, Long, Double> map(
@@ -104,6 +104,11 @@ public class Jaccard {
 			return new Tuple3<Long, Long, Double>(value.f0, value.f1, 
 					((double)(value.f2)/(double)(value.f3 + value.f4)));
 		}
+	}
+
+	@Override
+	public String getDescription() {
+		return "Usage: Jaccard <input-file-path> <output-file-path>";
 	}
 	
 }
