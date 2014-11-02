@@ -197,7 +197,30 @@ under the License.
 							</includes>
 						</configuration>
 					</execution>
-					
+				
+					<!-- Jaccard Similarity-->
+                                        <execution>
+                                                <id>Jaccard</id>
+                                                <phase>package</phase>
+                                                <goals>
+                                                        <goal>jar</goal>
+                                                </goals>
+                                                <configuration>
+                                                        <classifier>Jaccard</classifier>
+
+                                                        <archive>
+                                                                <manifestEntries>
+                                                                        <program-class>org.apache.flink.examples.java.preprocessing.Jaccard</program-class>
+                                                                </manifestEntries>
+                                                        </archive>
+
+                                                        <includes>
+                                                                <include>**/java/preprocessing/Jaccard.class</include>
+                                                                <include>**/java/preprocessing/Jaccard$*.class</include>
+                                                        </includes>
+                                                </configuration>
+                                        </execution>
+	
 					<!-- These queries are currently not self-contained -->
 
 					<!-- TPC-H Query 10 -->
