@@ -2,6 +2,7 @@ package org.apache.flink.examples.java.preprocessing;
 
 import java.util.Iterator;
 
+import org.apache.flink.api.common.ProgramDescription;
 import org.apache.flink.api.common.functions.FlatJoinFunction;
 import org.apache.flink.api.common.functions.GroupReduceFunction;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -19,18 +20,17 @@ import org.apache.flink.util.Collector;
  * on an original and the metric backbone graph, as computed by PageRank. 
  *
  */
-public class SpearmanRank {
+public class SpearmanRank implements ProgramDescription {
 
 	@SuppressWarnings("serial")
 	public static void main(String[] args) throws Exception {
-		if (args.length < 6) {
+		if (args.length < 4) {
 			System.err.println("Usage: SpearmanRank <input-semimetric> <input-no-triangles> "
-					+ "<output-semimetric-ranked> <output-no-triangles-ranked> <output-spearman-coefficient>"
-					+ "<number_of_vertices>" );
-			System.exit(-1);
+					+ "<output-spearman-coefficient> <number_of_vertices>" );
+			return;
 		}
 		
-		final long numberOfVertices = Long.parseLong(args[5]);
+		final long numberOfVertices = Long.parseLong(args[3]);
 		
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 		
@@ -175,26 +175,6 @@ public class SpearmanRank {
 						});
 		
 		
-		
-		// store semimetric with Spearman ranks
-		semimetricWithSpearmanRank.writeAsCsv(args[2], "\n", "\t");
-		
-		// store non-semimetric with Spearman ranks
-		noTrianglesWithSpearmanRank.writeAsCsv(args[3], "\n", "\t");
-		
-		
-		// count how many common ids exist in both datasets
-//		DataSet<Tuple1<Long>> commonIds = semimetricWithSpearmanRank.join(noTrianglesWithSpearmanRank)
-//				.where(0).equalTo(0).with(new FlatJoinFunction<Tuple3<Long,Double,Long>, Tuple3<Long,Double,Long>, 
-//						Tuple1<Long>>() {
-//							public void join(Tuple3<Long, Double, Long> first, Tuple3<Long, Double, Long> second,
-//									Collector<Tuple1<Long>> out) {
-//								out.collect(new Tuple1<Long>(1L));
-//							}
-//				}).groupBy(0).sum(0);
-//		
-//		commonIds.print();
-		
 		// compute the Spearman correlation coefficient
 		DataSet<Tuple1<Double>> spearman  = semimetricWithMeanRank.join(noTrianglesWithMeanRank)
 				.where(0).equalTo(0).with(new FlatJoinFunction<Tuple3<Long,Double,Double>, 
@@ -206,24 +186,32 @@ public class SpearmanRank {
 								
 							}		
 				}).groupBy(0).reduceGroup(new GroupReduceFunction<Tuple2<Integer,Double>, Tuple1<Double>>() {
-					public void reduce(Iterable<Tuple2<Integer, Double>> values,
-							Collector<Tuple1<Double>> out) {
+					public void reduce(Iterable<Tuple2<Integer, Double>> values, Collector<Tuple1<Double>> out) {
 						
 						double sum = 0.0;
 						double r = 0.0;
 						for (Tuple2<Integer, Double> value : values) {
 							sum += value.f1;
 						}
-						r = (double) (1 - (6 * sum) / (numberOfVertices*((numberOfVertices*numberOfVertices) - 1)));
+						
+						double denominator = ((double)numberOfVertices)*((Math.pow((double)(numberOfVertices), 2.0)) - 1.0);
+						r = 1.0 - ((6.0 * sum)/denominator);
+//						r = (double) (1 - ((6 * sum) / (numberOfVertices*((numberOfVertices*numberOfVertices) - 1))));
 						out.collect(new Tuple1<Double>(r));
 					}
 					
 				});
 
 		// write spearman coefficient
-		spearman.writeAsCsv(args[4]);
+		spearman.writeAsCsv(args[2]);
 		
 		env.execute();
+	}
+
+	@Override
+	public String getDescription() {
+		return "SpearmanRank <input-semimetric> <input-no-triangles> "
+					+ "<output-spearman-coefficient> <number_of_vertices>";
 	}
 	
 }
