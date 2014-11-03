@@ -4,6 +4,7 @@ import org.apache.flink.api.common.ProgramDescription;
 import org.apache.flink.api.common.functions.FlatJoinFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.operators.base.JoinOperatorBase.JoinHint;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.functions.FunctionAnnotation.ConstantFields;
@@ -45,11 +46,13 @@ public class Jaccard implements ProgramDescription {
 					}
 		}).distinct();
 		
-		DataSet<Tuple2<Long, Long>> verticesWithDegrees = vertexIds.join(edges).where(0).equalTo(0)
+		DataSet<Tuple2<Long, Long>> verticesWithDegrees = vertexIds.join(edges, JoinHint.REPARTITION_HASH_FIRST)
+				.where(0).equalTo(0)
 				.with(new FlatJoinWithCount()).groupBy(0).sum(1);
 		
 		// Compute the number of common neighbors for all edges
-		DataSet<Tuple3<Long, Long, Long>> commonNeighborCandidates = edges.join(edges).where(1).equalTo(0)
+		DataSet<Tuple3<Long, Long, Long>> commonNeighborCandidates = edges.join(edges, JoinHint.REPARTITION_SORT_MERGE)
+				.where(1).equalTo(0)
 				.projectFirst(0).projectSecond(1).projectFirst(1)
 				.types(Long.class, Long.class, Long.class);
 		
@@ -64,10 +67,13 @@ public class Jaccard implements ProgramDescription {
 		// Compute the Jaccard similarity
 		// attach the src's degree to the edge
 		// <srcId, trgId, count, scrDegree>
-		DataSet<Tuple4<Long, Long, Long, Long>> edgesWithSrcDegree = edgesWithCounts.join(verticesWithDegrees)
-				.where(0).equalTo(0).projectFirst(0, 1, 2).projectSecond(1).types(Long.class, Long.class, Long.class, Long.class);
+		DataSet<Tuple4<Long, Long, Long, Long>> edgesWithSrcDegree = edgesWithCounts
+				.join(verticesWithDegrees, JoinHint.BROADCAST_HASH_SECOND)
+				.where(0).equalTo(0).projectFirst(0, 1, 2).projectSecond(1)
+				.types(Long.class, Long.class, Long.class, Long.class);
 		
-		DataSet<Tuple3<Long, Long, Double>> edgesWithJaccard = edgesWithSrcDegree.join(verticesWithDegrees)
+		DataSet<Tuple3<Long, Long, Double>> edgesWithJaccard = edgesWithSrcDegree
+				.join(verticesWithDegrees, JoinHint.BROADCAST_HASH_SECOND)
 				.where(1).equalTo(0).projectFirst(0, 1, 2, 3).projectSecond(1).types(Long.class, Long.class, 
 						Long.class, Long.class, Long.class).map(new ComputeJaccardMapper());
 							
@@ -103,7 +109,6 @@ public class Jaccard implements ProgramDescription {
 				Tuple5<Long, Long, Long, Long, Long> value) {
 			return new Tuple3<Long, Long, Double>(value.f0, value.f1, 
 					convertToDistance(value.f2, value.f3 + value.f4));
-//					((double)(value.f2)/(double)(value.f3 + value.f4)));
 		}
 	}
 	
