@@ -102,8 +102,21 @@ public class Jaccard implements ProgramDescription {
 		public Tuple3<Long, Long, Double> map(
 				Tuple5<Long, Long, Long, Long, Long> value) {
 			return new Tuple3<Long, Long, Double>(value.f0, value.f1, 
-					((double)(value.f2)/(double)(value.f3 + value.f4)));
+					convertToDistance(value.f2, value.f3 + value.f4));
+//					((double)(value.f2)/(double)(value.f3 + value.f4)));
 		}
+	}
+	
+	private static double convertToDistance(long commonNeihbors, long totalNeighbors) {
+		double distance = 0.0;
+		double similarity = totalNeighbors > 0 ? (double)(commonNeihbors)/(double)(totalNeighbors) : Double.MIN_VALUE;
+			if (Math.abs(similarity) > 0) {
+				distance = (1.0 / similarity) - 1.0;
+			}
+			else {
+				distance = Double.MAX_VALUE;
+			}
+			return distance;
 	}
 
 	@Override
