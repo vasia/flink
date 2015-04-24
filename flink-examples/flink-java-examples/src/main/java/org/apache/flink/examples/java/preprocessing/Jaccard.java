@@ -7,8 +7,6 @@ import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.operators.base.JoinOperatorBase.JoinHint;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
-import org.apache.flink.api.java.functions.FunctionAnnotation.ConstantFields;
-import org.apache.flink.api.java.functions.FunctionAnnotation.ConstantFieldsFirst;
 import org.apache.flink.api.java.tuple.Tuple1;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -34,7 +32,7 @@ public class Jaccard implements ProgramDescription {
 		
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 		
-		DataSet<Tuple2<Long,Long>> edges = env.readCsvFile(args[0]).fieldDelimiter('\t')
+		DataSet<Tuple2<Long,Long>> edges = env.readCsvFile(args[0]).fieldDelimiter("\t")
 				.types(Long.class, Long.class);
 		
 		// compute the total number of neighbors for every vertex
@@ -53,12 +51,11 @@ public class Jaccard implements ProgramDescription {
 		// Compute the number of common neighbors for all edges
 		DataSet<Tuple3<Long, Long, Long>> commonNeighborCandidates = edges.join(edges, JoinHint.REPARTITION_SORT_MERGE)
 				.where(1).equalTo(0)
-				.projectFirst(0).projectSecond(1).projectFirst(1)
-				.types(Long.class, Long.class, Long.class);
+				.projectFirst(0).projectSecond(1).projectFirst(1);
 		
 		// remove non-existing edges
 		DataSet<Tuple2<Long, Long>> commonNeighbors = commonNeighborCandidates.join(edges)
-				.where(0, 1).equalTo(0, 1).projectFirst(0, 1).types(Long.class, Long.class);
+				.where(0, 1).equalTo(0, 1).projectFirst(0, 1);
 		
 		// <src, trg, common_neighbor_count>
 		DataSet<Tuple3<Long, Long, Long>> edgesWithCounts = commonNeighbors.map(
@@ -69,13 +66,13 @@ public class Jaccard implements ProgramDescription {
 		// <srcId, trgId, count, scrDegree>
 		DataSet<Tuple4<Long, Long, Long, Long>> edgesWithSrcDegree = edgesWithCounts
 				.join(verticesWithDegrees, JoinHint.BROADCAST_HASH_SECOND)
-				.where(0).equalTo(0).projectFirst(0, 1, 2).projectSecond(1)
-				.types(Long.class, Long.class, Long.class, Long.class);
+				.where(0).equalTo(0).projectFirst(0, 1, 2).projectSecond(1);
 		
 		DataSet<Tuple3<Long, Long, Double>> edgesWithJaccard = edgesWithSrcDegree
 				.join(verticesWithDegrees, JoinHint.BROADCAST_HASH_SECOND)
-				.where(1).equalTo(0).projectFirst(0, 1, 2, 3).projectSecond(1).types(Long.class, Long.class, 
-						Long.class, Long.class, Long.class).map(new ComputeJaccardMapper());
+				.where(1).equalTo(0).projectFirst(0, 1, 2, 3)
+				.<Tuple5<Long,Long,Long,Long,Long>>projectSecond(1)
+				.map(new ComputeJaccardMapper());
 							
 		edgesWithJaccard.writeAsCsv(args[1], "\n", "\t");
 
@@ -83,7 +80,6 @@ public class Jaccard implements ProgramDescription {
 	}
 	
 	@SuppressWarnings("serial")
-//	@ConstantFields("0 -> 0; 1 -> 1")
 	private static final class AddOneCountMapper implements MapFunction<Tuple2<Long, Long>, 
 		Tuple3<Long, Long, Long>> {
 		public Tuple3<Long, Long, Long> map(Tuple2<Long, Long> value) {
@@ -92,7 +88,6 @@ public class Jaccard implements ProgramDescription {
 	}
 	
 	@SuppressWarnings("serial")
-	@ConstantFieldsFirst("0 -> 0")
 	private static final class FlatJoinWithCount implements FlatJoinFunction<Tuple1<Long>, 
 		Tuple2<Long,Long>, Tuple2<Long, Long>> {
 		public void join(Tuple1<Long> first, Tuple2<Long, Long> second,
@@ -102,7 +97,6 @@ public class Jaccard implements ProgramDescription {
 	}
 	
 	@SuppressWarnings("serial")
-	@ConstantFields("0 -> 0 ; 1 -> 1")
 	private static final class ComputeJaccardMapper implements MapFunction<Tuple5<Long,Long,Long,Long,Long>, 
 		Tuple3<Long, Long, Double>> {
 		public Tuple3<Long, Long, Double> map(
