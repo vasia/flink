@@ -49,7 +49,7 @@ public class SSSPCompute implements ProgramDescription {
 
 		// Execute the vertex-centric iteration
 		Graph<Long, Double, Double> result = graph.runMessagePassingIteration(
-				new SSSPComputeFunction(srcVertexId), maxIterations);
+				new SSSPComputeFunction(srcVertexId), maxIterations, 0d);
 
 		// Extract the vertices as the result
 		DataSet<Vertex<Long, Double>> singleSourceShortestPaths = result.getVertices();
@@ -97,9 +97,9 @@ public class SSSPCompute implements ProgramDescription {
 			}
 
 			if (minDistance < vertex.getValue()) {
-				vertex.setValue(minDistance);
+				setNewVertexValue(minDistance);
 				for (Edge<Long, Double> e: getEdges()) {
-					sendMessageTo(e.getTarget(), e.getValue());
+					sendMessageTo(e.getTarget(), minDistance + e.getValue());
 				}
 			}
 		}
@@ -124,7 +124,7 @@ public class SSSPCompute implements ProgramDescription {
 
 		if(args.length > 0) {
 			if(args.length != 4) {
-				System.err.println("Usage: SingleSourceShortestPaths <source vertex id>" +
+				System.err.println("Usage: SSSPCompute <source vertex id>" +
 						" <input edges path> <output path> <num iterations>");
 				return false;
 			}

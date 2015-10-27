@@ -1643,10 +1643,10 @@ public class Graph<K, VV, EV> {
 	 */
 	public <M> Graph<K, VV, EV> runMessagePassingIteration(
 			ComputeFunction<K, VV, EV, M> computeFunction,
-			int maximumNumberOfIterations) {
+			int maximumNumberOfIterations, M dummy) {
 
 		MessagePassingIteration<K, VV, EV, M> iteration = MessagePassingIteration.withEdges(
-				edges, computeFunction, maximumNumberOfIterations);
+				edges, computeFunction, maximumNumberOfIterations, dummy);
 
 		DataSet<Vertex<K, VV>> newVertices = this.getVertices().runOperation(iteration);
 

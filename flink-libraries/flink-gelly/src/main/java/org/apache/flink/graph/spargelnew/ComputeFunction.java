@@ -154,8 +154,6 @@ public abstract class ComputeFunction<K, VV, EV, Message> implements Serializabl
 		setNewVertexValueCalled = true;
 
 		outValue.setField(VERTEXVALUE, 2);
-
-//		outValue.f0.setField(vertexId, 0);
 		outValue.f0.setField(newValue, 1);
 
 		out.collect(outValue);
@@ -234,8 +232,11 @@ public abstract class ComputeFunction<K, VV, EV, Message> implements Serializabl
 		this.edgeIterator = new EdgesIterator<K, EV>();
 	}
 	
-	void set(Vertex<K, VV> v, Iterator<?> edges, Collector<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> out) {
+	void set(Vertex<K, VV> v, Message dummy, Iterator<?> edges,
+			Collector<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> out) {
+
 		this.outValue.setField(v, 0);
+		this.outValue.setField(new Tuple2<K, Message>(v.getId(), dummy), 1);
 		this.edges = edges;
 		this.out = out;
 		this.edgesUsed = false;

@@ -77,6 +77,8 @@ public class MessagePassingIteration<K, VV, EV, Message>
 	implements CustomUnaryOperation<Vertex<K, VV>, Vertex<K, VV>>
 {
 
+	private final Message dummyMsg;
+
 	private final ComputeFunction<K, VV, EV, Message> computeFunction;
 	
 	private final DataSet<Edge<K, EV>> edgesWithValue;
@@ -96,7 +98,8 @@ public class MessagePassingIteration<K, VV, EV, Message>
 	// ----------------------------------------------------------------------------------
 	
 	private MessagePassingIteration(ComputeFunction<K, VV, EV, Message> cf,
-			DataSet<Edge<K, EV>> edgesWithValue, int maximumNumberOfIterations)
+			DataSet<Edge<K, EV>> edgesWithValue, int maximumNumberOfIterations,
+			Message dummy)
 	{
 		Preconditions.checkNotNull(cf);
 		Preconditions.checkNotNull(edgesWithValue);
@@ -107,6 +110,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 		this.edgesWithValue = edgesWithValue;
 		this.maximumNumberOfIterations = maximumNumberOfIterations;		
 		this.messageType = getMessageType(cf);
+		this.dummyMsg = dummy;
 	}
 	
 	private TypeInformation<Message> getMessageType(ComputeFunction<K, VV, EV, Message> cf) {
@@ -166,7 +170,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 				.with(new AppendVertexState<K, VV, Message>());
 
 		VertexComputeUdf<K, VV, EV, Message> vertexUdf =
-				new VertexComputeUdf<K, VV, EV, Message>(computeFunction, intermediateTypeInfo); 
+				new VertexComputeUdf<K, VV, EV, Message>(computeFunction, dummyMsg, intermediateTypeInfo); 
 
 		DataSet<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> superstepComputation =
 				verticesWithMsgs.coGroup(edgesWithValue)
@@ -205,9 +209,10 @@ public class MessagePassingIteration<K, VV, EV, Message>
 	public static final <K, VV, EV, Message> MessagePassingIteration<K, VV, EV, Message> withEdges(
 					DataSet<Edge<K, EV>> edgesWithValue,
 					ComputeFunction<K, VV, EV, Message> cf,
-					int maximumNumberOfIterations)
+					int maximumNumberOfIterations, Message dummy)
 	{
-		return new MessagePassingIteration<K, VV, EV, Message>(cf, edgesWithValue, maximumNumberOfIterations);
+		return new MessagePassingIteration<K, VV, EV, Message>(cf, edgesWithValue,
+				maximumNumberOfIterations, dummy);
 	}
 
 	/**
@@ -236,12 +241,14 @@ public class MessagePassingIteration<K, VV, EV, Message>
 		Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>>
 		implements ResultTypeQueryable<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> {
 
+		final Message dummy;
 		final ComputeFunction<K, VV, EV, Message> computeFunction;
 		private transient TypeInformation<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> resultType;
 
-		private VertexComputeUdf(ComputeFunction<K, VV, EV, Message> compute,
+		private VertexComputeUdf(ComputeFunction<K, VV, EV, Message> compute, Message dummyMsg,
 				TypeInformation<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> typeInfo) {
 
+			this.dummy = dummyMsg;
 			this.computeFunction = compute;
 			this.resultType = typeInfo;
 		}
@@ -279,7 +286,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 				final Vertex<K, VV> vertexState = state.f0;
 				final MessageIterator<Message> messageIter = state.f1;
 
-				computeFunction.set(vertexState, edgesIterator.iterator(), out);
+				computeFunction.set(vertexState, dummy, edgesIterator.iterator(), out);
 				computeFunction.compute(vertexState, messageIter);
 			}
 		}
