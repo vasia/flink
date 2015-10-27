@@ -42,7 +42,12 @@ public final class MessageIterator<Message> implements Iterator<Message>, Iterab
 	
 	@Override
 	public final boolean hasNext() {
-		return this.source.hasNext();
+		if (this.source != null) {
+			return this.source.hasNext();	
+		}
+		else {
+			return false;
+		}
 	}
 	
 	@Override

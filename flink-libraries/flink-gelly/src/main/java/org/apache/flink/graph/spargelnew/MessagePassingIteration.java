@@ -34,6 +34,7 @@ import org.apache.flink.api.common.functions.RichCoGroupFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.operators.CustomUnaryOperation;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import org.apache.flink.api.java.typeutils.TupleTypeInfo;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
@@ -41,7 +42,6 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.graph.Edge;
 import org.apache.flink.graph.Graph;
 import org.apache.flink.graph.Vertex;
-import org.apache.flink.types.NullValue;
 import org.apache.flink.util.Collector;
 
 import com.google.common.base.Preconditions;
@@ -73,7 +73,7 @@ import com.google.common.base.Preconditions;
  * @param <Message> The type of the message sent between vertices along the edges.
  * @param <EV> The type of the values that are associated with the edges.
  */
-public class VertexCentricIteration<K, VV, EV, Message> 
+public class MessagePassingIteration<K, VV, EV, Message> 
 	implements CustomUnaryOperation<Vertex<K, VV>, Vertex<K, VV>>
 {
 
@@ -89,9 +89,13 @@ public class VertexCentricIteration<K, VV, EV, Message>
 
 	private VertexCentricConfiguration configuration;
 
+	private static final boolean MESSAGE = true;
+
+	private static final boolean VERTEXVALUE = false;
+
 	// ----------------------------------------------------------------------------------
 	
-	private VertexCentricIteration(ComputeFunction<K, VV, EV, Message> cf,
+	private MessagePassingIteration(ComputeFunction<K, VV, EV, Message> cf,
 			DataSet<Edge<K, EV>> edgesWithValue, int maximumNumberOfIterations)
 	{
 		Preconditions.checkNotNull(cf);
@@ -143,8 +147,10 @@ public class VertexCentricIteration<K, VV, EV, Message>
 		TypeInformation<Tuple2<K, Message>> messageTypeInfo =
 				new TupleTypeInfo<Tuple2<K, Message>>(keyType, messageType);
 		TypeInformation<Vertex<K, VV>> vertexType = initialVertices.getType();
-		TypeInformation<Tuple2<Vertex<K, VV>, Tuple2<K, Message>>> intermediateTypeInfo =
-				new TupleTypeInfo<Tuple2<Vertex<K, VV>, Tuple2<K, Message>>>(vertexType, messageTypeInfo);
+		TypeInformation<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> intermediateTypeInfo =
+				new TupleTypeInfo<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>>(
+						vertexType, messageTypeInfo,
+						TypeExtractor.getForClass(Boolean.class));
 
 		DataSet<Tuple2<K, MessageIterator<Message>>> initialWorkSet = initialVertices.map(
 				new InitWorkSet<K, VV, Message>());
@@ -162,9 +168,9 @@ public class VertexCentricIteration<K, VV, EV, Message>
 		VertexComputeUdf<K, VV, EV, Message> vertexUdf =
 				new VertexComputeUdf<K, VV, EV, Message>(computeFunction, intermediateTypeInfo); 
 
-		DataSet<Tuple2<Vertex<K, VV>, Tuple2<K, Message>>> superstepComputation =
+		DataSet<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> superstepComputation =
 				verticesWithMsgs.coGroup(edgesWithValue)
-				.where(0).equalTo(0)
+				.where("f0.f0").equalTo(0)
 				.with(vertexUdf);
 
 		// compute the solution set delta
@@ -196,12 +202,12 @@ public class VertexCentricIteration<K, VV, EV, Message>
 	 * 
 	 * @return An in stance of the vertex-centric graph computation operator.
 	 */
-	public static final <K, VV, EV, Message> VertexCentricIteration<K, VV, EV, Message> withEdges(
+	public static final <K, VV, EV, Message> MessagePassingIteration<K, VV, EV, Message> withEdges(
 					DataSet<Edge<K, EV>> edgesWithValue,
 					ComputeFunction<K, VV, EV, Message> cf,
 					int maximumNumberOfIterations)
 	{
-		return new VertexCentricIteration<K, VV, EV, Message>(cf, edgesWithValue, maximumNumberOfIterations);
+		return new MessagePassingIteration<K, VV, EV, Message>(cf, edgesWithValue, maximumNumberOfIterations);
 	}
 
 	/**
@@ -226,21 +232,22 @@ public class VertexCentricIteration<K, VV, EV, Message>
 
 	@SuppressWarnings("serial")
 	private static class VertexComputeUdf<K, VV, EV, Message> extends RichCoGroupFunction<
-		Tuple2<Vertex<K, VV>, MessageIterator<Message>>, Edge<K, EV>, Tuple2<Vertex<K, VV>, Tuple2<K, Message>>>
-		implements ResultTypeQueryable<Tuple2<Vertex<K, VV>, Tuple2<K, Message>>> {
+		Tuple2<Vertex<K, VV>, MessageIterator<Message>>, Edge<K, EV>,
+		Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>>
+		implements ResultTypeQueryable<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> {
 
 		final ComputeFunction<K, VV, EV, Message> computeFunction;
-		private transient TypeInformation<Tuple2<Vertex<K, VV>, Tuple2<K, Message>>> resultType;
+		private transient TypeInformation<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> resultType;
 
 		private VertexComputeUdf(ComputeFunction<K, VV, EV, Message> compute,
-				TypeInformation<Tuple2<Vertex<K, VV>, Tuple2<K, Message>>> typeInfo) {
+				TypeInformation<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> typeInfo) {
 
 			this.computeFunction = compute;
 			this.resultType = typeInfo;
 		}
 
 		@Override
-		public TypeInformation<Tuple2<Vertex<K, VV>, Tuple2<K, Message>>> getProducedType() {
+		public TypeInformation<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> getProducedType() {
 			return this.resultType;
 		}
 
@@ -261,7 +268,7 @@ public class VertexCentricIteration<K, VV, EV, Message>
 		public void coGroup(
 				Iterable<Tuple2<Vertex<K, VV>, MessageIterator<Message>>> messages,
 				Iterable<Edge<K, EV>> edgesIterator,
-				Collector<Tuple2<Vertex<K, VV>, Tuple2<K, Message>>> out) throws Exception {
+				Collector<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> out) throws Exception {
 
 			final Iterator<Tuple2<Vertex<K, VV>, MessageIterator<Message>>> vertexIter =
 					messages.iterator();
@@ -272,7 +279,7 @@ public class VertexCentricIteration<K, VV, EV, Message>
 				final Vertex<K, VV> vertexState = state.f0;
 				final MessageIterator<Message> messageIter = state.f1;
 
-				computeFunction.set(vertexState.getId(), edgesIterator.iterator(), out);
+				computeFunction.set(vertexState, edgesIterator.iterator(), out);
 				computeFunction.compute(vertexState, messageIter);
 			}
 		}
@@ -341,12 +348,12 @@ public class VertexCentricIteration<K, VV, EV, Message>
 
 	@SuppressWarnings("serial")
 	private static final class ProjectNewVertexValue<K, VV, Message> implements
-		FlatMapFunction<Tuple2<Vertex<K, VV>, Tuple2<K, Message>>, Vertex<K, VV>> {
+		FlatMapFunction<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>, Vertex<K, VV>> {
 
-		public void flatMap(Tuple2<Vertex<K, VV>, Tuple2<K, Message>> value,
+		public void flatMap(Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean> value,
 				Collector<Vertex<K, VV>> out) {
 
-			if (!(value.f0.equals(NullValue.getInstance()))) {
+			if (value.f2.equals(VERTEXVALUE)) {
 				out.collect(value.f0);
 			}
 		}
@@ -354,12 +361,12 @@ public class VertexCentricIteration<K, VV, EV, Message>
 
 	@SuppressWarnings("serial")
 	private static final class ProjectMessages<K, VV, Message> implements
-		FlatMapFunction<Tuple2<Vertex<K, VV>, Tuple2<K, Message>>, Tuple2<K, Message>> {
+		FlatMapFunction<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>, Tuple2<K, Message>> {
 
-		public void flatMap(Tuple2<Vertex<K, VV>, Tuple2<K, Message>> value,
+		public void flatMap(Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean> value,
 				Collector<Tuple2<K, Message>> out) {
 
-			if (!(value.f1.equals(NullValue.getInstance()))) {
+			if (value.f2.equals(MESSAGE)) {
 				out.collect(value.f1);
 			}
 		}
