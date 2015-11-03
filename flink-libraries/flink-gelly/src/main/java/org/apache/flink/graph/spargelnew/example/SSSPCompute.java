@@ -49,7 +49,7 @@ public class SSSPCompute implements ProgramDescription {
 
 		// Execute the vertex-centric iteration
 		Graph<Long, Double, Double> result = graph.runMessagePassingIteration(
-				new SSSPComputeFunction(srcVertexId), maxIterations, 0d);
+				new SSSPComputeFunction(srcVertexId), maxIterations, Double.POSITIVE_INFINITY);
 
 		// Extract the vertices as the result
 		DataSet<Vertex<Long, Double>> singleSourceShortestPaths = result.getVertices();

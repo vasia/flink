@@ -24,10 +24,10 @@ import java.util.Map;
 import org.apache.flink.api.common.aggregators.Aggregator;
 import org.apache.flink.api.common.functions.FlatJoinFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.common.functions.GroupReduceFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields;
+import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFieldsFirst;
 import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFieldsSecond;
 import org.apache.flink.api.java.operators.DeltaIteration;
 import org.apache.flink.api.common.functions.RichCoGroupFunction;
@@ -156,15 +156,15 @@ public class MessagePassingIteration<K, VV, EV, Message>
 						vertexType, messageTypeInfo,
 						TypeExtractor.getForClass(Boolean.class));
 
-		DataSet<Tuple2<K, MessageIterator<Message>>> initialWorkSet = initialVertices.map(
-				new InitWorkSet<K, VV, Message>());
+		DataSet<Tuple2<K, Message>> initialWorkSet = initialVertices.map(
+				new InitWorkSet<K, VV, Message>(dummyMsg, messageTypeInfo));
 
-		final DeltaIteration<Vertex<K, VV>,	Tuple2<K, MessageIterator<Message>>> iteration =
+		final DeltaIteration<Vertex<K, VV>,	Tuple2<K, Message>> iteration =
 				initialVertices.iterateDelta(initialWorkSet, this.maximumNumberOfIterations, 0);
 				setUpIteration(iteration);
 
 		// join with the current state to get vertex values
-		DataSet<Tuple2<Vertex<K, VV>, MessageIterator<Message>>> verticesWithMsgs =
+		DataSet<Tuple2<Vertex<K, VV>, Message>> verticesWithMsgs =
 				iteration.getSolutionSet().join(iteration.getWorkset())
 				.where(0).equalTo(0)
 				.with(new AppendVertexState<K, VV, Message>());
@@ -182,9 +182,8 @@ public class MessagePassingIteration<K, VV, EV, Message>
 				new ProjectNewVertexValue<K, VV, Message>());
 
 		// compute the inbox of each vertex for the next superstep (new workset)
-		DataSet<Tuple2<K, MessageIterator<Message>>> newWorkSet = superstepComputation.flatMap(
-				new ProjectMessages<K, VV, Message>()).groupBy(0).reduceGroup(
-				new CreateMessages<K, Message>());
+		DataSet<Tuple2<K, Message>> newWorkSet = superstepComputation.flatMap(
+				new ProjectMessages<K, VV, Message>());
 
 //		configureComputeFunction(superstepComputation);
 
@@ -237,7 +236,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 
 	@SuppressWarnings("serial")
 	private static class VertexComputeUdf<K, VV, EV, Message> extends RichCoGroupFunction<
-		Tuple2<Vertex<K, VV>, MessageIterator<Message>>, Edge<K, EV>,
+		Tuple2<Vertex<K, VV>, Message>, Edge<K, EV>,
 		Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>>
 		implements ResultTypeQueryable<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> {
 
@@ -273,18 +272,23 @@ public class MessagePassingIteration<K, VV, EV, Message>
 
 		@Override
 		public void coGroup(
-				Iterable<Tuple2<Vertex<K, VV>, MessageIterator<Message>>> messages,
+				Iterable<Tuple2<Vertex<K, VV>, Message>> messages,
 				Iterable<Edge<K, EV>> edgesIterator,
 				Collector<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> out) throws Exception {
 
-			final Iterator<Tuple2<Vertex<K, VV>, MessageIterator<Message>>> vertexIter =
-					messages.iterator();
+			final Iterator<Tuple2<Vertex<K, VV>, Message>> vertexIter =	messages.iterator();
 
 			if (vertexIter.hasNext()) {
 
-				final Tuple2<Vertex<K, VV>, MessageIterator<Message>> state = vertexIter.next();
-				final Vertex<K, VV> vertexState = state.f0;
-				final MessageIterator<Message> messageIter = state.f1;
+				final Tuple2<Vertex<K, VV>, Message> first = vertexIter.next();
+				final Vertex<K, VV> vertexState = first.f0;
+				final MessageIterator<Message> messageIter = new MessageIterator<Message>();
+				messageIter.setFirst(first.f1);
+
+				@SuppressWarnings("unchecked")
+				Iterator<Tuple2<?, Message>> downcastIter =
+						(Iterator<Tuple2<?, Message>>) (Iterator<?>) vertexIter;
+				messageIter.setSource(downcastIter);
 
 				computeFunction.set(vertexState, dummy, edgesIterator.iterator(), out);
 				computeFunction.compute(vertexState, messageIter);
@@ -326,29 +330,42 @@ public class MessagePassingIteration<K, VV, EV, Message>
 	@SuppressWarnings("serial")
 	@ForwardedFields("f0")
 	private static final class InitWorkSet<K, VV, Message> implements
-		MapFunction<Vertex<K, VV>, Tuple2<K, MessageIterator<Message>>> {
+		MapFunction<Vertex<K, VV>, Tuple2<K, Message>>,
+		ResultTypeQueryable<Tuple2<K, Message>> {
 
-		private final MessageIterator<Message> iterator = new MessageIterator<Message>();
+		private transient TypeInformation<Tuple2<K, Message>> resultType;
+		final Message dummy;
 
-		public Tuple2<K, MessageIterator<Message>> map(Vertex<K, VV> vertex) {
-			return new Tuple2<K, MessageIterator<Message>>(vertex.getId(), iterator);
+		public InitWorkSet(Message initialMsg, TypeInformation<Tuple2<K, Message>> typeInfo) {
+			this.dummy = initialMsg;
+			this.resultType = typeInfo;
+		}
+
+		public Tuple2<K, Message> map(Vertex<K, VV> vertex) {
+			return new Tuple2<K, Message>(vertex.getId(), dummy);
+		}
+
+		@Override
+		public TypeInformation<Tuple2<K, Message>> getProducedType() {
+			return resultType;
 		}
 	}
 
 	@SuppressWarnings("serial")
+	@ForwardedFieldsFirst("*->f0")
 	@ForwardedFieldsSecond("f1->f1")
 	private static final class AppendVertexState<K, VV, Message> implements
-		FlatJoinFunction<Vertex<K, VV>, Tuple2<K, MessageIterator<Message>>,
-		Tuple2<Vertex<K, VV>, MessageIterator<Message>>> {
+		FlatJoinFunction<Vertex<K, VV>, Tuple2<K, Message>,
+		Tuple2<Vertex<K, VV>, Message>> {
 
-		private Tuple2<Vertex<K, VV>, MessageIterator<Message>> outTuple =
-				new Tuple2<Vertex<K, VV>, MessageIterator<Message>>();
+		private Tuple2<Vertex<K, VV>, Message> outTuple =
+				new Tuple2<Vertex<K, VV>, Message>();
 
-		public void join(Vertex<K, VV> vertex, Tuple2<K, MessageIterator<Message>> messages,
-				Collector<Tuple2<Vertex<K, VV>, MessageIterator<Message>>> out) {
+		public void join(Vertex<K, VV> vertex, Tuple2<K, Message> message,
+				Collector<Tuple2<Vertex<K, VV>, Message>> out) {
 
 			outTuple.setField(vertex, 0);
-			outTuple.setField(messages.f1, 1);
+			outTuple.setField(message.f1, 1);
 			out.collect(outTuple);
 		}
 	}
@@ -375,36 +392,6 @@ public class MessagePassingIteration<K, VV, EV, Message>
 
 			if (value.f2.equals(MESSAGE)) {
 				out.collect(value.f1);
-			}
-		}
-	}
-
-	@SuppressWarnings("serial")
-	private static final class CreateMessages<K, Message> implements
-		GroupReduceFunction<Tuple2<K, Message>, Tuple2<K, MessageIterator<Message>>> {
-
-		final MessageIterator<Message> msgIterator = new MessageIterator<Message>();
-		private Tuple2<K, MessageIterator<Message>> outTuple = new Tuple2<K, MessageIterator<Message>>();
-		
-		public void reduce(Iterable<Tuple2<K, Message>> messages,
-				Collector<Tuple2<K, MessageIterator<Message>>> out) {
-
-			final Iterator<Tuple2<K, Message>> messagesIter = messages.iterator();
-
-			if (messagesIter.hasNext()) {
-				final Tuple2<K, Message> first = messagesIter.next();
-				final K id = first.f0;
-				msgIterator.setFirst(first.f1);
-
-				@SuppressWarnings("unchecked")
-				Iterator<Tuple2<?, Message>> downcastIter =
-						(Iterator<Tuple2<?, Message>>) (Iterator<?>) messagesIter;
-				msgIterator.setSource(downcastIter);
-
-				outTuple.setField(id, 0);
-				outTuple.setField(msgIterator, 1);
-
-				out.collect(outTuple);
 			}
 		}
 	}
