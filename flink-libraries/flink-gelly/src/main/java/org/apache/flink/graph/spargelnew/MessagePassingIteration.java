@@ -338,6 +338,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 	}
 
 	@SuppressWarnings("serial")
+	@ForwardedFields("f0")
 	public static class MessageCombinerUdf<K, Message> extends RichGroupReduceFunction<
 		Tuple2<K, Message>, Tuple2<K, Message>>
 		implements ResultTypeQueryable<Tuple2<K, Message>> {
@@ -361,7 +362,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 		public void reduce(Iterable<Tuple2<K, Message>> messages,
 				Collector<Tuple2<K, Message>> out) throws Exception {
 			
-			final Iterator<Tuple2<K, Message>> messageIterator =	messages.iterator();
+			final Iterator<Tuple2<K, Message>> messageIterator = messages.iterator();
 
 			if (messageIterator.hasNext()) {
 
@@ -463,6 +464,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 	}
 
 	@SuppressWarnings("serial")
+	@ForwardedFields("f0->*")
 	private static final class ProjectNewVertexValue<K, VV, Message> implements
 		FlatMapFunction<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>, Vertex<K, VV>> {
 
@@ -476,6 +478,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 	}
 
 	@SuppressWarnings("serial")
+	@ForwardedFields("f1->*")
 	private static final class ProjectMessages<K, VV, Message> implements
 		FlatMapFunction<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>, Tuple2<K, Message>> {
 

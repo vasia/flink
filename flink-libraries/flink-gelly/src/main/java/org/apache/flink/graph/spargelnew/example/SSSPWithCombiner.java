@@ -50,7 +50,8 @@ public class SSSPWithCombiner implements ProgramDescription {
 
 		// Execute the vertex-centric iteration
 		Graph<Long, Double, Double> result = graph.runMessagePassingIteration(
-				new SSSPComputeFunction(srcVertexId), maxIterations, Double.POSITIVE_INFINITY);
+				new SSSPComputeFunction(srcVertexId), new SSSPCombiner(), 
+				maxIterations, Double.POSITIVE_INFINITY);
 
 		// Extract the vertices as the result
 		DataSet<Vertex<Long, Double>> singleSourceShortestPaths = result.getVertices();
@@ -62,7 +63,9 @@ public class SSSPWithCombiner implements ProgramDescription {
 			// since file sinks are lazy, we trigger the execution explicitly
 			env.execute("Single Source Shortest Paths Example");
 		} else {
-			singleSourceShortestPaths.print();
+//			singleSourceShortestPaths.print();
+			singleSourceShortestPaths.writeAsCsv("out", "\n", ",");
+			System.out.println(env.getExecutionPlan());
 		}
 
 	}
