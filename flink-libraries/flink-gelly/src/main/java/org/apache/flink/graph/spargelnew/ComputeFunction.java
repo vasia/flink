@@ -34,7 +34,7 @@ import org.apache.flink.types.Value;
 import org.apache.flink.util.Collector;
 
 /**
- * The base class for the message-passing functions between vertices as a part of a {@link VertexCentricIteration}.
+ * The base class for the message-passing functions between vertices as a part of a {@link MessagePassingteration}.
  * 
  * @param <K> The type of the vertex key (the vertex identifier).
  * @param <VV> The type of the vertex value (the state of the vertex).

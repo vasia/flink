@@ -25,6 +25,7 @@ import org.apache.flink.api.common.aggregators.Aggregator;
 import org.apache.flink.api.common.functions.FlatJoinFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.RichGroupReduceFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields;
 import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFieldsFirst;
@@ -80,6 +81,8 @@ public class MessagePassingIteration<K, VV, EV, Message>
 	private final Message dummyMsg;
 
 	private final ComputeFunction<K, VV, EV, Message> computeFunction;
+
+	private final MessageCombiner<K, Message> combineFunction;
 	
 	private final DataSet<Edge<K, EV>> edgesWithValue;
 	
@@ -98,8 +101,8 @@ public class MessagePassingIteration<K, VV, EV, Message>
 	// ----------------------------------------------------------------------------------
 	
 	private MessagePassingIteration(ComputeFunction<K, VV, EV, Message> cf,
-			DataSet<Edge<K, EV>> edgesWithValue, int maximumNumberOfIterations,
-			Message dummy)
+			DataSet<Edge<K, EV>> edgesWithValue, MessageCombiner<K, Message> mc,
+			int maximumNumberOfIterations, Message dummy)
 	{
 		Preconditions.checkNotNull(cf);
 		Preconditions.checkNotNull(edgesWithValue);
@@ -108,6 +111,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 
 		this.computeFunction = cf;
 		this.edgesWithValue = edgesWithValue;
+		this.combineFunction = mc;
 		this.maximumNumberOfIterations = maximumNumberOfIterations;		
 		this.messageType = getMessageType(cf);
 		this.dummyMsg = dummy;
@@ -182,8 +186,19 @@ public class MessagePassingIteration<K, VV, EV, Message>
 				new ProjectNewVertexValue<K, VV, Message>());
 
 		// compute the inbox of each vertex for the next superstep (new workset)
-		DataSet<Tuple2<K, Message>> newWorkSet = superstepComputation.flatMap(
+		DataSet<Tuple2<K, Message>> allMessages = superstepComputation.flatMap(
 				new ProjectMessages<K, VV, Message>());
+
+		DataSet<Tuple2<K, Message>> newWorkSet = allMessages;
+
+		// check if a combiner has been provided
+		if (combineFunction != null) {
+			MessageCombinerUdf<K, Message> combinerUdf =
+					new MessageCombinerUdf<K, Message>(combineFunction, messageTypeInfo);
+
+			DataSet<Tuple2<K, Message>> combinedMessages = allMessages.groupBy(0).reduceGroup(combinerUdf);
+			newWorkSet = combinedMessages;
+		}
 
 //		configureComputeFunction(superstepComputation);
 
@@ -210,7 +225,33 @@ public class MessagePassingIteration<K, VV, EV, Message>
 					ComputeFunction<K, VV, EV, Message> cf,
 					int maximumNumberOfIterations, Message dummy)
 	{
-		return new MessagePassingIteration<K, VV, EV, Message>(cf, edgesWithValue,
+		return new MessagePassingIteration<K, VV, EV, Message>(cf, edgesWithValue, null,
+				maximumNumberOfIterations, dummy);
+	}
+
+	/**
+	 * Creates a new vertex-centric iteration operator for graphs where the edges are associated with a value (such as
+	 * a weight or distance).
+	 * 
+	 * @param edgesWithValue The data set containing edges.
+	 * @param uf The function that updates the state of the vertices from the incoming messages.
+	 * @param mf The function that turns changed vertex states into messages along the edges.
+	 * @param mc The function that combines messages sent to a vertex during a superstep.
+	 * 
+	 * @param <K> The type of the vertex key (the vertex identifier).
+	 * @param <VV> The type of the vertex value (the state of the vertex).
+	 * @param <Message> The type of the message sent between vertices along the edges.
+	 * @param <EV> The type of the values that are associated with the edges.
+	 * 
+	 * @return An in stance of the vertex-centric graph computation operator.
+	 */
+	public static final <K, VV, EV, Message> MessagePassingIteration<K, VV, EV, Message> withEdges(
+					DataSet<Edge<K, EV>> edgesWithValue,
+					ComputeFunction<K, VV, EV, Message> cf,
+					MessageCombiner<K, Message> mc,
+					int maximumNumberOfIterations, Message dummy)
+	{
+		return new MessagePassingIteration<K, VV, EV, Message>(cf, edgesWithValue, mc,
 				maximumNumberOfIterations, dummy);
 	}
 
@@ -294,6 +335,57 @@ public class MessagePassingIteration<K, VV, EV, Message>
 				computeFunction.compute(vertexState, messageIter);
 			}
 		}
+	}
+
+	@SuppressWarnings("serial")
+	public static class MessageCombinerUdf<K, Message> extends RichGroupReduceFunction<
+		Tuple2<K, Message>, Tuple2<K, Message>>
+		implements ResultTypeQueryable<Tuple2<K, Message>> {
+
+		final MessageCombiner<K, Message> combinerFunction;
+		private transient TypeInformation<Tuple2<K, Message>> resultType;
+
+		private MessageCombinerUdf(MessageCombiner<K, Message> combineFunction,
+				TypeInformation<Tuple2<K, Message>> messageTypeInfo) {
+
+			this.combinerFunction = combineFunction;
+			this.resultType = messageTypeInfo;
+		}
+
+		@Override
+		public TypeInformation<Tuple2<K, Message>> getProducedType() {
+			return resultType;
+		}
+
+		@Override
+		public void reduce(Iterable<Tuple2<K, Message>> messages,
+				Collector<Tuple2<K, Message>> out) throws Exception {
+			
+			final Iterator<Tuple2<K, Message>> messageIterator =	messages.iterator();
+
+			if (messageIterator.hasNext()) {
+
+				final Tuple2<K, Message> first = messageIterator.next();
+				final K vertexID = first.f0;
+				final MessageIterator<Message> messageIter = new MessageIterator<Message>();
+				messageIter.setFirst(first.f1);
+
+				@SuppressWarnings("unchecked")
+				Iterator<Tuple2<?, Message>> downcastIter =
+						(Iterator<Tuple2<?, Message>>) (Iterator<?>) messageIterator;
+				messageIter.setSource(downcastIter);
+
+				combinerFunction.set(vertexID, out);
+				combinerFunction.combineMessages(messageIter);
+			}
+		}
+
+		@Override
+		public void combine(Iterable<Tuple2<K, Message>> values,
+				Collector<Tuple2<K, Message>> out) throws Exception {
+			this.reduce(values, out);
+		}
+		
 	}
 
 

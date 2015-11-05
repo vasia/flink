@@ -56,6 +56,7 @@ import org.apache.flink.graph.spargel.VertexCentricConfiguration;
 import org.apache.flink.graph.spargel.VertexCentricIteration;
 import org.apache.flink.graph.spargel.VertexUpdateFunction;
 import org.apache.flink.graph.spargelnew.ComputeFunction;
+import org.apache.flink.graph.spargelnew.MessageCombiner;
 import org.apache.flink.graph.spargelnew.MessagePassingIteration;
 import org.apache.flink.graph.utils.EdgeToTuple3Map;
 import org.apache.flink.graph.utils.Tuple2ToVertexMap;
@@ -1647,6 +1648,30 @@ public class Graph<K, VV, EV> {
 
 		MessagePassingIteration<K, VV, EV, M> iteration = MessagePassingIteration.withEdges(
 				edges, computeFunction, maximumNumberOfIterations, dummy);
+
+		DataSet<Vertex<K, VV>> newVertices = this.getVertices().runOperation(iteration);
+
+		return new Graph<K, VV, EV>(newVertices, this.edges, this.context);
+	}
+
+	/**
+	 * Runs a compute-only Vertex-Centric iteration on the graph
+	 * and defines a message combiner to reduce the communication requirements.
+	 * 
+	 * @param computeFunction the vertex compute function
+	 * @param combiner the message combiner
+	 * @param maximumNumberOfIterations maximum number of iterations to perform
+	 * 
+	 * @return the updated Graph after the vertex-centric iteration has converged or
+	 * after maximumNumberOfIterations.
+	 */
+	public <M> Graph<K, VV, EV> runMessagePassingIteration(
+			ComputeFunction<K, VV, EV, M> computeFunction,
+			MessageCombiner<K, M> combiner,
+			int maximumNumberOfIterations, M dummy) {
+
+		MessagePassingIteration<K, VV, EV, M> iteration = MessagePassingIteration.withEdges(
+				edges, computeFunction, combiner, maximumNumberOfIterations, dummy);
 
 		DataSet<Vertex<K, VV>> newVertices = this.getVertices().runOperation(iteration);
 
