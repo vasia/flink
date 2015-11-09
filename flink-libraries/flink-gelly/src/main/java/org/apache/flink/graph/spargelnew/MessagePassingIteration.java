@@ -118,7 +118,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 	}
 	
 	private TypeInformation<Message> getMessageType(ComputeFunction<K, VV, EV, Message> cf) {
-		return TypeExtractor.createTypeInfo(ComputeFunction.class, cf.getClass(), 2, null, null);
+		return TypeExtractor.createTypeInfo(ComputeFunction.class, cf.getClass(), 3, null, null);
 	}
 	
 	// --------------------------------------------------------------------------------------------

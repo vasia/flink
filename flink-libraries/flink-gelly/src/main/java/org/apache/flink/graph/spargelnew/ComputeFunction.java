@@ -88,7 +88,6 @@ public abstract class ComputeFunction<K, VV, EV, Message> implements Serializabl
 	 * 
 	 * @return An iterator with all edges.
 	 */
-	@SuppressWarnings("unchecked")
 	public final Iterable<Edge<K, EV>> getEdges() {
 		if (edgesUsed) {
 			throw new IllegalStateException("Can use either 'getEdges()' or 'sendMessageToAllTargets()' exactly once.");
@@ -214,7 +213,7 @@ public abstract class ComputeFunction<K, VV, EV, Message> implements Serializabl
 	
 	private IterationRuntimeContext runtimeContext;
 	
-	private Iterator<?> edges;
+	private Iterator<Edge<K, EV>> edges;
 	
 	private Collector<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> out;
 	
@@ -232,7 +231,7 @@ public abstract class ComputeFunction<K, VV, EV, Message> implements Serializabl
 		this.edgeIterator = new EdgesIterator<K, EV>();
 	}
 	
-	void set(Vertex<K, VV> v, Message dummy, Iterator<?> edges,
+	void set(Vertex<K, VV> v, Message dummy, Iterator<Edge<K, EV>> edges,
 			Collector<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> out) {
 
 		this.outValue.setField(v, 0);
