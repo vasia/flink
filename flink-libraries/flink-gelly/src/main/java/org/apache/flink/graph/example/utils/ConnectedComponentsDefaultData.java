@@ -54,4 +54,13 @@ public class ConnectedComponentsDefaultData {
 	public static final String VERTICES_WITH_MIN_ID = "1,1\n" + "2,1\n" + "3,1\n" + "4,1";
 
 	private ConnectedComponentsDefaultData() {}
+
+	public static DataSet<Edge<Long, Long>> getDefaultLongEdgeDataSet(
+			ExecutionEnvironment env) {
+		List<Edge<Long, Long>> edgeList = new LinkedList<Edge<Long, Long>>();
+		for (Object[] edge : DEFAULT_EDGES) {
+			edgeList.add(new Edge<Long, Long>((Long) edge[0], (Long) edge[1], 1l));
+		}
+		return env.fromCollection(edgeList);
+	}
 }

@@ -18,17 +18,18 @@
 
 package org.apache.flink.graph.spargelnew.example;
 
+import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.ProgramDescription;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.graph.Edge;
 import org.apache.flink.graph.Graph;
 import org.apache.flink.graph.Vertex;
 import org.apache.flink.graph.example.utils.SingleSourceShortestPathsData;
 import org.apache.flink.graph.spargelnew.ComputeFunction;
 import org.apache.flink.graph.spargelnew.MessageIterator;
-import org.apache.flink.graph.utils.Tuple3ToEdgeMap;
 
 /**
  * This example shows how to use the new vertex-centric iteration model.
@@ -59,7 +60,8 @@ public class SSSPCompute implements ProgramDescription {
 			singleSourceShortestPaths.writeAsCsv(outputPath, "\n", ",");
 
 			// since file sinks are lazy, we trigger the execution explicitly
-			env.execute("Single Source Shortest Paths Example");
+			JobExecutionResult jobRes = env.execute("Single Source Shortest Paths Example");
+			System.out.println("Execution time: " + jobRes.getNetRuntime());
 		} else {
 			singleSourceShortestPaths.print();
 		}
@@ -145,13 +147,20 @@ public class SSSPCompute implements ProgramDescription {
 		return true;
 	}
 
+	@SuppressWarnings("serial")
 	private static DataSet<Edge<Long, Double>> getEdgesDataSet(ExecutionEnvironment env) {
 		if (fileOutput) {
 			return env.readCsvFile(edgesInputPath)
 					.lineDelimiter("\n")
-					.fieldDelimiter("\t")
-					.types(Long.class, Long.class, Double.class)
-					.map(new Tuple3ToEdgeMap<Long, Double>());
+					.fieldDelimiter(" ")
+					.ignoreComments("%")
+					.types(Long.class, Long.class)
+					.map(new MapFunction<Tuple2<Long,Long>, Edge<Long, Double>>() {
+
+						public Edge<Long, Double> map(Tuple2<Long, Long> value) {
+							return new Edge<Long, Double>(value.f0, value.f1, 1.0);
+						}
+					});
 		} else {
 			return SingleSourceShortestPathsData.getDefaultEdgeDataSet(env);
 		}

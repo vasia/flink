@@ -27,15 +27,15 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.graph.Edge;
 import org.apache.flink.graph.Graph;
 import org.apache.flink.graph.Vertex;
-import org.apache.flink.graph.example.utils.SingleSourceShortestPathsData;
+import org.apache.flink.graph.example.utils.ConnectedComponentsDefaultData;
 import org.apache.flink.graph.spargelnew.ComputeFunction;
-import org.apache.flink.graph.spargelnew.MessageCombiner;
 import org.apache.flink.graph.spargelnew.MessageIterator;
+import org.apache.flink.types.NullValue;
 
 /**
  * This example shows how to use the new vertex-centric iteration model.
  */
-public class SSSPWithCombiner implements ProgramDescription {
+public class PregelCC implements ProgramDescription {
 
 	public static void main(String[] args) throws Exception {
 
@@ -45,31 +45,27 @@ public class SSSPWithCombiner implements ProgramDescription {
 
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
 
-		DataSet<Edge<Long, Double>> edges = getEdgesDataSet(env);
+		DataSet<Edge<Long, NullValue>> edges = getEdgesDataSet(env);
 
-		Graph<Long, Double, Double> graph = Graph.fromDataSet(edges, new InitVertices(), env);
+		Graph<Long, Long, NullValue> graph = Graph.fromDataSet(edges, new InitVertices(), env);
 
 		// Execute the vertex-centric iteration
-		Graph<Long, Double, Double> result = graph.runMessagePassingIteration(
-				new SSSPComputeFunction(srcVertexId), new SSSPCombiner(), 
-				maxIterations, Double.POSITIVE_INFINITY);
+		Graph<Long, Long, NullValue> result = graph.getUndirected().runMessagePassingIteration(
+				new CCComputeFunction(), maxIterations, Long.MAX_VALUE);
 
 		// Extract the vertices as the result
-		DataSet<Vertex<Long, Double>> singleSourceShortestPaths = result.getVertices();
+		DataSet<Vertex<Long, Long>> cc = result.getVertices();
 
 		// emit result
 		if (fileOutput) {
-			singleSourceShortestPaths.writeAsCsv(outputPath, "\n", ",");
+			cc.writeAsCsv(outputPath, "\n", ",");
 
 			// since file sinks are lazy, we trigger the execution explicitly
-			JobExecutionResult jobRes = env.execute("Single Source Shortest Paths Example");
+			JobExecutionResult jobRes = env.execute("Connected Components Pregel");
 			System.out.println("Execution time: " + jobRes.getNetRuntime());
 		} else {
-			singleSourceShortestPaths.print();
-//			singleSourceShortestPaths.writeAsCsv("out", "\n", ",");
-//			System.out.println(env.getExecutionPlan());
+			cc.print();
 		}
-
 	}
 
 	// --------------------------------------------------------------------------------------------
@@ -77,51 +73,30 @@ public class SSSPWithCombiner implements ProgramDescription {
 	// --------------------------------------------------------------------------------------------
 
 	@SuppressWarnings("serial")
-	private static final class InitVertices implements MapFunction<Long, Double> {
-
-		public Double map(Long id) { return Double.POSITIVE_INFINITY; }
+	private static final class InitVertices implements MapFunction<Long, Long> {
+		public Long map(Long id) { return id; }
 	}
 
 	/**
-	 * The compute function for SSSP
+	 * The compute function for CC
 	 */
 	@SuppressWarnings("serial")
-	public static final class SSSPComputeFunction extends ComputeFunction<Long, Double, Double, Double> {
+	public static final class CCComputeFunction extends ComputeFunction<Long, Long, NullValue, Long> {
 
-		private final long srcId;
+		public void compute(Vertex<Long, Long> vertex, MessageIterator<Long> messages) {
 
-		public SSSPComputeFunction(long src) {
-			this.srcId = src;
-		}
+			long currentComponent = vertex.getValue();
 
-		public void compute(Vertex<Long, Double> vertex, MessageIterator<Double> messages) {
-
-			double minDistance = (vertex.getId().equals(srcId)) ? 0d : Double.POSITIVE_INFINITY;
-
-			for (Double msg : messages) {
-				minDistance = Math.min(minDistance, msg);
+			for (Long msg : messages) {
+				currentComponent = Math.min(currentComponent, msg);
 			}
 
-			if (minDistance < vertex.getValue()) {
-				setNewVertexValue(minDistance);
-				for (Edge<Long, Double> e: getEdges()) {
-					sendMessageTo(e.getTarget(), minDistance + e.getValue());
-				}
+			if ((getSuperstepNumber() == 1) || (currentComponent < vertex.getValue())) {
+				setNewVertexValue(currentComponent);
+				sendMessageToAllNeighbors(currentComponent);
 			}
 		}
-	}
-
-	@SuppressWarnings("serial")
-	public static final class SSSPCombiner extends MessageCombiner<Long, Double> {
-
-		public void combineMessages(MessageIterator<Double> messages) {
-
-			double minMessage = Double.POSITIVE_INFINITY;
-			for (Double msg: messages) {
-				minMessage = Math.min(minMessage, msg);
-			}
-			sendCombinedMessage(minMessage);
-		}
+		
 	}
 
 	// ******************************************************************************************************************
@@ -129,8 +104,6 @@ public class SSSPWithCombiner implements ProgramDescription {
 	// ******************************************************************************************************************
 
 	private static boolean fileOutput = false;
-
-	private static Long srcVertexId = 1l;
 
 	private static String edgesInputPath = null;
 
@@ -141,49 +114,48 @@ public class SSSPWithCombiner implements ProgramDescription {
 	private static boolean parseParameters(String[] args) {
 
 		if(args.length > 0) {
-			if(args.length != 4) {
-				System.err.println("Usage: SSSPCompute <source vertex id>" +
+			if(args.length != 3) {
+				System.err.println("Usage: PregelCC " +
 						" <input edges path> <output path> <num iterations>");
 				return false;
 			}
 
 			fileOutput = true;
-			srcVertexId = Long.parseLong(args[0]);
-			edgesInputPath = args[1];
-			outputPath = args[2];
-			maxIterations = Integer.parseInt(args[3]);
+			edgesInputPath = args[0];
+			outputPath = args[1];
+			maxIterations = Integer.parseInt(args[2]);
 		} else {
-				System.out.println("Executing Single Source Shortest Paths example "
+				System.out.println("Executing Pregel CC "
 						+ "with default parameters and built-in default data.");
 				System.out.println("  Provide parameters to read input data from files.");
 				System.out.println("  See the documentation for the correct format of input files.");
-				System.out.println("Usage: SingleSourceShortestPaths <source vertex id>" +
+				System.out.println("Usage: PregelCC " +
 						" <input edges path> <output path> <num iterations>");
 		}
 		return true;
 	}
 
 	@SuppressWarnings("serial")
-	private static DataSet<Edge<Long, Double>> getEdgesDataSet(ExecutionEnvironment env) {
+	private static DataSet<Edge<Long, NullValue>> getEdgesDataSet(ExecutionEnvironment env) {
 		if (fileOutput) {
 			return env.readCsvFile(edgesInputPath)
 					.lineDelimiter("\n")
-					.fieldDelimiter(" ")
-					.ignoreComments("%")
+					.fieldDelimiter("\t")
+					.ignoreComments("#")
 					.types(Long.class, Long.class)
-					.map(new MapFunction<Tuple2<Long,Long>, Edge<Long, Double>>() {
-
-						public Edge<Long, Double> map(Tuple2<Long, Long> value) {
-							return new Edge<Long, Double>(value.f0, value.f1, 1.0);
+					.map(new MapFunction<Tuple2<Long, Long>, Edge<Long, NullValue>>() {
+						@Override
+						public Edge<Long, NullValue> map(Tuple2<Long, Long> value) throws Exception {
+							return new Edge<Long, NullValue>(value.f0, value.f1, NullValue.getInstance());
 						}
 					});
 		} else {
-			return SingleSourceShortestPathsData.getDefaultEdgeDataSet(env);
+			return ConnectedComponentsDefaultData.getDefaultEdgeDataSet(env);
 		}
 	}
 
 	@Override
 	public String getDescription() {
-		return "Vertex-centric Single Source Shortest Paths";
+		return "Vertex-centric Connected Components";
 	}
 }
