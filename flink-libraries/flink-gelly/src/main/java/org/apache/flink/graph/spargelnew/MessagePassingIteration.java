@@ -193,10 +193,15 @@ public class MessagePassingIteration<K, VV, EV, Message>
 
 		// check if a combiner has been provided
 		if (combineFunction != null) {
+
 			MessageCombinerUdf<K, Message> combinerUdf =
 					new MessageCombinerUdf<K, Message>(combineFunction, messageTypeInfo);
 
-			DataSet<Tuple2<K, Message>> combinedMessages = allMessages.groupBy(0).reduceGroup(combinerUdf);
+			DataSet<Tuple2<K, Message>> combinedMessages = allMessages
+					.groupBy(0)
+					.reduceGroup(combinerUdf);
+//					.setCombinable(true);
+
 			newWorkSet = combinedMessages;
 		}
 
@@ -339,6 +344,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 
 	@SuppressWarnings("serial")
 	@ForwardedFields("f0")
+	@org.apache.flink.api.common.functions.RichGroupReduceFunction.Combinable
 	public static class MessageCombinerUdf<K, Message> extends RichGroupReduceFunction<
 		Tuple2<K, Message>, Tuple2<K, Message>>
 		implements ResultTypeQueryable<Tuple2<K, Message>> {
@@ -386,7 +392,6 @@ public class MessagePassingIteration<K, VV, EV, Message>
 				Collector<Tuple2<K, Message>> out) throws Exception {
 			this.reduce(values, out);
 		}
-		
 	}
 
 
