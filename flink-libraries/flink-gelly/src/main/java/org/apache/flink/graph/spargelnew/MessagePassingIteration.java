@@ -199,8 +199,8 @@ public class MessagePassingIteration<K, VV, EV, Message>
 
 			DataSet<Tuple2<K, Message>> combinedMessages = allMessages
 					.groupBy(0)
-					.reduceGroup(combinerUdf);
-//					.setCombinable(true);
+					.reduceGroup(combinerUdf)
+					.setCombinable(true);
 
 			newWorkSet = combinedMessages;
 		}
@@ -344,7 +344,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 
 	@SuppressWarnings("serial")
 	@ForwardedFields("f0")
-	@org.apache.flink.api.common.functions.RichGroupReduceFunction.Combinable
+//	@org.apache.flink.api.common.functions.RichGroupReduceFunction.Combinable
 	public static class MessageCombinerUdf<K, Message> extends RichGroupReduceFunction<
 		Tuple2<K, Message>, Tuple2<K, Message>>
 		implements ResultTypeQueryable<Tuple2<K, Message>> {

@@ -168,8 +168,8 @@ public class SSSPWithCombiner implements ProgramDescription {
 		if (fileOutput) {
 			return env.readCsvFile(edgesInputPath)
 					.lineDelimiter("\n")
-					.fieldDelimiter(" ")
-					.ignoreComments("%")
+					.fieldDelimiter("\t")
+					.ignoreComments("#")
 					.types(Long.class, Long.class)
 					.map(new MapFunction<Tuple2<Long,Long>, Edge<Long, Double>>() {
 

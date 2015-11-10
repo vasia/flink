@@ -179,8 +179,7 @@ public class GSASingleSourceShortestPaths implements ProgramDescription {
 		if (fileOutput) {
 			return env.readCsvFile(edgesInputPath)
 					.fieldDelimiter("\t")
-					.fieldDelimiter(" ")
-					.ignoreComments("%")
+					.ignoreComments("#")
 					.types(Long.class, Long.class)
 					.map(new MapFunction<Tuple2<Long,Long>, Edge<Long, Double>>() {
 

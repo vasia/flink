@@ -29,13 +29,14 @@ import org.apache.flink.graph.Graph;
 import org.apache.flink.graph.Vertex;
 import org.apache.flink.graph.example.utils.ConnectedComponentsDefaultData;
 import org.apache.flink.graph.spargelnew.ComputeFunction;
+import org.apache.flink.graph.spargelnew.MessageCombiner;
 import org.apache.flink.graph.spargelnew.MessageIterator;
 import org.apache.flink.types.NullValue;
 
 /**
  * This example shows how to use the new vertex-centric iteration model.
  */
-public class PregelCC implements ProgramDescription {
+public class PregelCCWithCombiner implements ProgramDescription {
 
 	public static void main(String[] args) throws Exception {
 
@@ -51,7 +52,7 @@ public class PregelCC implements ProgramDescription {
 
 		// Execute the vertex-centric iteration
 		Graph<Long, Long, NullValue> result = graph.getUndirected().runMessagePassingIteration(
-				new CCComputeFunction(), maxIterations, Long.MAX_VALUE);
+				new CCComputeFunction(), new CCCombiner(), maxIterations, Long.MAX_VALUE);
 
 		// Extract the vertices as the result
 		DataSet<Vertex<Long, Long>> cc = result.getVertices();
@@ -61,7 +62,7 @@ public class PregelCC implements ProgramDescription {
 			cc.writeAsCsv(outputPath, "\n", ",");
 
 			// since file sinks are lazy, we trigger the execution explicitly
-			JobExecutionResult jobRes = env.execute("Connected Components Pregel");
+			JobExecutionResult jobRes = env.execute("Connected Components Pregel w/ Combiner");
 			System.out.println("Execution time: " + jobRes.getNetRuntime());
 		} else {
 			cc.print();
@@ -99,6 +100,19 @@ public class PregelCC implements ProgramDescription {
 			}
 		}
 		
+	}
+
+	@SuppressWarnings("serial")
+	public static final class CCCombiner extends MessageCombiner<Long, Long> {
+
+		public void combineMessages(MessageIterator<Long> messages) {
+
+			long minMessage = Long.MAX_VALUE;
+			for (Long msg: messages) {
+				minMessage = Math.min(minMessage, msg);
+			}
+			sendCombinedMessage(minMessage);
+		}
 	}
 
 	// ******************************************************************************************************************

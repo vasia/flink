@@ -18,6 +18,7 @@
 
 package org.apache.flink.graph.example;
 
+import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.ProgramDescription;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.DataSet;
@@ -76,7 +77,8 @@ public class ConnectedComponents implements ProgramDescription {
 			verticesWithMinIds.writeAsCsv(outputPath, "\n", ",");
 
 			// since file sinks are lazy, we trigger the execution explicitly
-			env.execute("Connected Components Example");
+			JobExecutionResult jobRes = env.execute("GSA Connected Components");
+			System.out.println("Execution time: " + jobRes.getNetRuntime());
 		} else {
 			verticesWithMinIds.print();
 		}

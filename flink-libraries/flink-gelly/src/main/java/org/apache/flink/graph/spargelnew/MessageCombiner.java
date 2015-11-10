@@ -26,6 +26,7 @@ import org.apache.flink.util.Collector;
 /**
  * The base class for combining messages sent during a {@link MessagePassingteration}.
  * 
+ * @param <K> The type of the vertex id
  * @param <Message> The type of the message sent between vertices along the edges.
  */
 public abstract class MessageCombiner<K, Message> implements Serializable {
