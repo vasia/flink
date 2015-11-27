@@ -26,7 +26,7 @@ import org.apache.flink.api.common.aggregators.Aggregator;
 import org.apache.flink.api.common.functions.IterationRuntimeContext;
 import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.typeutils.Either;
 import org.apache.flink.graph.Edge;
 import org.apache.flink.graph.EdgeDirection;
 import org.apache.flink.graph.Vertex;
@@ -111,14 +111,12 @@ public abstract class ComputeFunction<K, VV, EV, Message> implements Serializabl
 		
 		edgesUsed = true;
 
-		outValue.setField(MESSAGE, 2);
-
-		outValue.f1.setField(m, 1);
+		outMsg.setField(m, 1);
 		
 		while (edges.hasNext()) {
 			Tuple next = (Tuple) edges.next();
-			outValue.f1.setField(next.getField(1), 0);
-			out.collect(outValue);
+			outMsg.setField(next.getField(1), 0);
+			out.collect(Either.right(outMsg));
 		}
 	}
 	
@@ -131,12 +129,10 @@ public abstract class ComputeFunction<K, VV, EV, Message> implements Serializabl
 	 */
 	public final void sendMessageTo(K target, Message m) {
 
-		outValue.setField(MESSAGE, 2);
+		outMsg.setField(target, 0);
+		outMsg.setField(m, 1);
 
-		outValue.f1.setField(target, 0);
-		outValue.f1.setField(m, 1);
-
-		out.collect(outValue);
+		out.collect(Either.right(outMsg));
 	}
 
 	/**
@@ -152,10 +148,9 @@ public abstract class ComputeFunction<K, VV, EV, Message> implements Serializabl
 		}
 		setNewVertexValueCalled = true;
 
-		outValue.setField(VERTEXVALUE, 2);
-		outValue.f0.setField(newValue, 1);
+		outVertex.setField(newValue, 1);
 
-		out.collect(outValue);
+		out.collect(Either.left(outVertex));
 	}
 	// --------------------------------------------------------------------------------------------
 	
@@ -205,17 +200,15 @@ public abstract class ComputeFunction<K, VV, EV, Message> implements Serializabl
 	//  internal methods and state
 	// --------------------------------------------------------------------------------------------
 
-	private Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean> outValue;
+	private Vertex<K, VV> outVertex;
 
-	private static final boolean MESSAGE = true;
-
-	private static final boolean VERTEXVALUE = false;
+	private Tuple2<K, Message> outMsg;
 	
 	private IterationRuntimeContext runtimeContext;
 	
 	private Iterator<Edge<K, EV>> edges;
 	
-	private Collector<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> out;
+	private Collector<Either<?, ?>> out;
 	
 	private EdgesIterator<K, EV> edgeIterator;
 	
@@ -225,19 +218,18 @@ public abstract class ComputeFunction<K, VV, EV, Message> implements Serializabl
 	
 	void init(IterationRuntimeContext context) {
 		this.runtimeContext = context;
-		this.outValue = new Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>();
-		this.outValue.setField(new Vertex<K, VV>(), 0);
-		this.outValue.setField(new Tuple2<K, Message>(), 1);
+		this.outVertex = new Vertex<K, VV>();
+		this.outMsg = new Tuple2<K, Message>();
 		this.edgeIterator = new EdgesIterator<K, EV>();
 	}
 	
-	void set(Vertex<K, VV> v, Message dummy, Iterator<Edge<K, EV>> edges,
-			Collector<Tuple3<Vertex<K, VV>, Tuple2<K, Message>, Boolean>> out) {
+	@SuppressWarnings("unchecked")
+	void set(K vertexId, Iterator<Edge<K, EV>> edges,
+			Collector<Either<Vertex<K, VV>, Tuple2<K, Message>>> out) {
 
-		this.outValue.setField(v, 0);
-		this.outValue.setField(new Tuple2<K, Message>(v.getId(), dummy), 1);
+		this.outVertex.setField(vertexId, 0);
 		this.edges = edges;
-		this.out = out;
+		this.out = (Collector<Either<?, ?>>) (Collector<?>) out;
 		this.edgesUsed = false;
 		setNewVertexValueCalled = false;
 	}

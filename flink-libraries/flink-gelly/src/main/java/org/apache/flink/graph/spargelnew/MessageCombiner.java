@@ -21,6 +21,8 @@ package org.apache.flink.graph.spargelnew;
 import java.io.Serializable;
 
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.typeutils.Either;
+import org.apache.flink.types.NullValue;
 import org.apache.flink.util.Collector;
 
 /**
@@ -33,16 +35,16 @@ public abstract class MessageCombiner<K, Message> implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
-	private Collector<Tuple2<K, Message>> out;
+	private Collector<Tuple2<K, Either<NullValue, Message>>> out;
 
 	private K vertexId;
 
-	private Tuple2<K, Message> outValue;
+	private Tuple2<K, Either<NullValue, Message>> outValue;
 
-	void set(K target, Collector<Tuple2<K, Message>> collector) {
+	void set(K target, Collector<Tuple2<K, Either<NullValue, Message>>> collector) {
 		this.vertexId = target;
 		this.out = collector;
-		this.outValue = new Tuple2<K, Message>();
+		this.outValue = new Tuple2<K, Either<NullValue, Message>>();
 		outValue.setField(vertexId, 0);
 	}
 
@@ -60,7 +62,7 @@ public abstract class MessageCombiner<K, Message> implements Serializable {
 	 * @throws Exception
 	 */
 	public final void sendCombinedMessage(Message combinedMessage) {
-		outValue.setField(combinedMessage, 1);
+		outValue.setField(Either.right(combinedMessage), 1);
 		out.collect(outValue);
 	}
 }

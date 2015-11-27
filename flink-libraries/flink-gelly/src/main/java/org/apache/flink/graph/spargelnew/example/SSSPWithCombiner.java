@@ -52,7 +52,7 @@ public class SSSPWithCombiner implements ProgramDescription {
 		// Execute the vertex-centric iteration
 		Graph<Long, Double, Double> result = graph.runMessagePassingIteration(
 				new SSSPComputeFunction(srcVertexId), new SSSPCombiner(), 
-				maxIterations, Double.POSITIVE_INFINITY);
+				maxIterations);
 
 		// Extract the vertices as the result
 		DataSet<Vertex<Long, Double>> singleSourceShortestPaths = result.getVertices();

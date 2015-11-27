@@ -1643,14 +1643,11 @@ public class Graph<K, VV, EV> {
 	 * after maximumNumberOfIterations.
 	 */
 	public <M> Graph<K, VV, EV> runMessagePassingIteration(
-			ComputeFunction<K, VV, EV, M> computeFunction,
-			int maximumNumberOfIterations, M dummy) {
+			ComputeFunction<K, VV, EV, M> computeFunction, int maximumNumberOfIterations) {
 
 		MessagePassingIteration<K, VV, EV, M> iteration = MessagePassingIteration.withEdges(
-				edges, computeFunction, maximumNumberOfIterations, dummy);
-
+				edges, computeFunction, maximumNumberOfIterations);
 		DataSet<Vertex<K, VV>> newVertices = this.getVertices().runOperation(iteration);
-
 		return new Graph<K, VV, EV>(newVertices, this.edges, this.context);
 	}
 
@@ -1666,15 +1663,12 @@ public class Graph<K, VV, EV> {
 	 * after maximumNumberOfIterations.
 	 */
 	public <M> Graph<K, VV, EV> runMessagePassingIteration(
-			ComputeFunction<K, VV, EV, M> computeFunction,
-			MessageCombiner<K, M> combiner,
-			int maximumNumberOfIterations, M dummy) {
+			ComputeFunction<K, VV, EV, M> computeFunction, MessageCombiner<K, M> combiner,
+			int maximumNumberOfIterations) {
 
 		MessagePassingIteration<K, VV, EV, M> iteration = MessagePassingIteration.withEdges(
-				edges, computeFunction, combiner, maximumNumberOfIterations, dummy);
-
+				edges, computeFunction, combiner, maximumNumberOfIterations);
 		DataSet<Vertex<K, VV>> newVertices = this.getVertices().runOperation(iteration);
-
 		return new Graph<K, VV, EV>(newVertices, this.edges, this.context);
 	}
 

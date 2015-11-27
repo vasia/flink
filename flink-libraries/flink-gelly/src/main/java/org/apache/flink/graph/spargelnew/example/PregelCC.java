@@ -51,7 +51,7 @@ public class PregelCC implements ProgramDescription {
 
 		// Execute the vertex-centric iteration
 		Graph<Long, Long, NullValue> result = graph.getUndirected().runMessagePassingIteration(
-				new CCComputeFunction(), maxIterations, Long.MAX_VALUE);
+				new CCComputeFunction(), maxIterations);
 
 		// Extract the vertices as the result
 		DataSet<Vertex<Long, Long>> cc = result.getVertices();
