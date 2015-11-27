@@ -25,7 +25,9 @@ package org.apache.flink.api.java.typeutils;
  * @param <L> the type of Left
  * @param <R> the type of Right
  */
-public abstract class Either<L, R> {
+public abstract class Either<L, R> implements java.io.Serializable {
+
+	private static final long serialVersionUID = 1L;
 
 	/**
 	 * Create a Left value of Either
@@ -72,6 +74,8 @@ public abstract class Either<L, R> {
 	}
 
 	private static class Left<L, R> extends Either<L, R> {
+
+		private static final long serialVersionUID = 1L;
 		private final L value;
 
 		public Left(L value) {
@@ -109,6 +113,8 @@ public abstract class Either<L, R> {
 	}
 
 	private static class Right<L, R> extends Either<L, R> {
+
+		private static final long serialVersionUID = 1L;
 		private final R value;
 
 		public Right(R value) {

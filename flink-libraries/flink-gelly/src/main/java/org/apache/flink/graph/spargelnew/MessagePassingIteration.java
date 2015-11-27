@@ -158,7 +158,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 			new TupleTypeInfo<Tuple2<K, Either<NullValue, Message>>>(keyType, nullableMsgTypeInfo);
 
 		DataSet<Tuple2<K, Either<NullValue, Message>>> initialWorkSet = initialVertices.map(
-				new InitializeWorkSet<K, VV, Message>());
+				new InitializeWorkSet<K, VV, Message>()).returns(workSetTypeInfo);
 
 		final DeltaIteration<Vertex<K, VV>,	Tuple2<K, Either<NullValue, Message>>> iteration =
 				initialVertices.iterateDelta(initialWorkSet, this.maximumNumberOfIterations, 0);
@@ -280,7 +280,7 @@ public class MessagePassingIteration<K, VV, EV, Message>
 		MapFunction<Vertex<K, VV>, Tuple2<K, Either<NullValue, Message>>> {
 
 		private Tuple2<K, Either<NullValue, Message>> outTuple = new Tuple2<K, Either<NullValue, Message>>();
-		private final Either<NullValue, Message> nullMessage = Either.left(NullValue.getInstance());
+		private Either<NullValue, Message> nullMessage = Either.left(NullValue.getInstance());
 
 		public Tuple2<K, Either<NullValue, Message>> map(Vertex<K, VV> vertex) {
 			outTuple.setField(vertex.getId(), 0);
