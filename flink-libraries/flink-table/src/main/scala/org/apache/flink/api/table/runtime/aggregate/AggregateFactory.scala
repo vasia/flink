@@ -28,6 +28,7 @@ import org.apache.flink.api.table.plan.PlanGenException
 import org.apache.flink.api.table.runtime.AggregateFunction
 import org.apache.flink.api.table.Row
 import org.apache.calcite.rel.`type`.RelDataType
+import org.apache.flink.api.table.runtime.CombinableAggregateFunction
 
 object AggregateFactory {
 
@@ -36,6 +37,7 @@ object AggregateFactory {
 
     val fieldIndexes = new Array[Int](aggregateCalls.size)
     val aggregates = new Array[Aggregate[_ <: Any]](aggregateCalls.size)
+    var hasAvg = false
     aggregateCalls.zipWithIndex.map { case (aggregateCall, index) =>
       val argList: util.List[Integer] = aggregateCall.getArgList
       // currently assume only aggregate on singleton field.
@@ -69,6 +71,7 @@ object AggregateFactory {
           }
         }
         case _: SqlAvgAggFunction => {
+          hasAvg = true
           sqlTypeName match {
             case TINYINT =>
               aggregates(index) = new ByteAvgAggregate
@@ -130,7 +133,16 @@ object AggregateFactory {
       }
     }
 
-    new AggregateFunction(aggregates, fieldIndexes, groupings)
+    // if no AVG create a combinable aggregate function
+    println("*** hasAvg is " + hasAvg);
+    if (hasAvg) {
+      new AggregateFunction(aggregates, fieldIndexes, groupings)  
+    }
+    else {
+      println("creating combinable function...");
+      new CombinableAggregateFunction(aggregates, fieldIndexes, groupings)
+    }
+    
   }
 
 }
