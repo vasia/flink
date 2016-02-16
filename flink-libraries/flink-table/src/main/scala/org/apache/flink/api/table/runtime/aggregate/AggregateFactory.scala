@@ -134,12 +134,10 @@ object AggregateFactory {
     }
 
     // if no AVG create a combinable aggregate function
-    println("*** hasAvg is " + hasAvg);
     if (hasAvg) {
       new AggregateFunction(aggregates, fieldIndexes, groupings)  
     }
     else {
-      println("creating combinable function...");
       new CombinableAggregateFunction(aggregates, fieldIndexes, groupings)
     }
     

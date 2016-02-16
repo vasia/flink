@@ -32,7 +32,6 @@ import org.apache.flink.api.table.plan.TypeConverter._
 import org.apache.flink.api.common.functions.MapFunction
 import org.apache.flink.api.java.tuple.Tuple2
 import org.apache.flink.api.table.typeinfo.RowTypeInfo
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import org.apache.flink.api.table.plan.TypeConverter
 

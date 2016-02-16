@@ -23,6 +23,9 @@ import org.apache.calcite.rel.RelNode
 import org.apache.calcite.rel.convert.ConverterRule
 import org.apache.calcite.rel.logical.LogicalAggregate
 import org.apache.flink.api.table.plan.nodes.logical.{FlinkAggregate, FlinkConvention}
+import org.apache.calcite.plan.RelOptRuleCall
+import scala.collection.JavaConversions._
+import scala.collection.mutable.Buffer
 
 class FlinkAggregateRule
   extends ConverterRule(
@@ -31,6 +34,30 @@ class FlinkAggregateRule
       FlinkConvention.INSTANCE,
       "FlinkAggregateRule")
   {
+
+  // do no match if there are aggregates on overlapping fields
+    override def matches(call: RelOptRuleCall): Boolean = {
+      var overlap = true
+      if (super.matches(call)) {
+        val aggFields = scala.collection.mutable.Set.empty[Integer]
+        val aggCall = call.rel(0).asInstanceOf[LogicalAggregate].getAggCallList
+        
+        // go over aggCalls and check if calls access the same input fields
+        aggCall.foreach(agg => agg.getArgList.foreach(arg => {
+          if (aggFields.contains(arg)) {
+            // found an aggregate that accesses the same field
+            overlap = false
+          }
+          else {
+            aggFields.add(arg)
+          }
+        }))
+        overlap
+      }
+      else {
+        false
+      }
+    }
 
     def convert(rel: RelNode): RelNode = {
       val agg: LogicalAggregate = rel.asInstanceOf[LogicalAggregate]

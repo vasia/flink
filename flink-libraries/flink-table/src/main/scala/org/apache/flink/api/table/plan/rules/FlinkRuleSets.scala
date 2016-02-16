@@ -26,7 +26,7 @@ import org.apache.flink.api.table.plan.rules.dataset._
 object FlinkRuleSets {
 
   /**
-    * RuleSet to optimize plans for batch / DataSet exeuction
+    * RuleSet to optimize plans for batch / DataSet execution
     */
   val DATASET_OPT_RULES: RuleSet = RuleSets.ofList(
 
@@ -37,7 +37,7 @@ object FlinkRuleSets {
     FilterAggregateTransposeRule.INSTANCE,
 
     // push and merge projection rules
-    AggregateProjectMergeRule.INSTANCE,
+    FlinkAggregateProjectMergeRule.INSTANCE,
     ProjectMergeRule.INSTANCE,
     ProjectFilterTransposeRule.INSTANCE,
     FilterProjectTransposeRule.INSTANCE,
@@ -63,6 +63,7 @@ object FlinkRuleSets {
     // deactivate this rule temporarily
     // AggregateReduceFunctionsRule.INSTANCE,
     AggregateExpandDistinctAggregatesRule.INSTANCE,
+    AggregateCombinableRule.INSTANCE,
 
     // remove unnecessary sort rule
     SortRemoveRule.INSTANCE,

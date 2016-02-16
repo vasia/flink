@@ -43,10 +43,13 @@ class DataSetAggregateRule
 
     val inputType = agg.getInput.getRowType()
 
+    //TODO: throw an exception if aggregates with overlapping fields =>
+    //bad plan!
+
     // add grouping fields, position keys in the input, and input type
     val aggregateFunction = AggregateFactory.createAggregateInstance(agg.getAggCallList,
         inputType, grouping)
-
+        
     new DataSetGroupReduce(
       rel.getCluster,
       traitSet,

@@ -42,6 +42,33 @@ class CombinableAggregateFunction(
     with GroupCombineFunction[Row, Row] {
 
   override def combine(records: Iterable[Row], out: Collector[Row]): Unit = {
-    reduce(records, out)
+    // if there were overlapping fields => we have added a projection
+    // so we can just call reduce()
+    // if there are no overlapping fields, do we still need the projection?
+    // if not, then should this method have a different implementation than the reduce?
+    // we can't just call reduce, even if we have the projection,
+    // because the output type of the reduce is different in this case also
+    // and the output type of this combine has to be the same as the reducer's input type
+    aggregates.foreach(_.initiateAggregate)
+
+    var currentRecord: Row = null
+
+    // iterate all input records, feed to each aggregate.
+    val recordIterator = records.iterator
+
+    while (recordIterator.hasNext) {
+      currentRecord = recordIterator.next()
+      for (i <- 0 until aggregates.length) {
+        aggregates(i).aggregate(currentRecord.productElement(fields(i)))
+        println("aggregates: " + i + ", " +  aggregates(i).toString)
+      }
+    }
+
+    // copy the results of the aggregate functions to the output row
+    for (i <- 0 until aggregates.length) {
+      currentRecord.setField(fields(i), aggregates(i).getAggregated)
+    }
+    println("combine result: " + currentRecord)
+    out.collect(currentRecord)
   }
 }

@@ -63,6 +63,19 @@ class GroupedAggregationsITCase(mode: TestExecutionMode) extends MultipleProgram
   }
 
   @Test
+  def testGroupedAggregateWithOverlap(): Unit = {
+
+    val env = ExecutionEnvironment.getExecutionEnvironment
+    val t = CollectionDataSets.get3TupleDataSet(env).as('a, 'b, 'c)
+      .groupBy('b)
+      .select('a.min, 'a.max)
+
+    val expected = "1,1\n" + "2,3\n" + "4,6\n" + "7,10\n" + "11,15\n" + "16,21\n"
+    val results = t.toDataSet[Row].collect()
+    TestBaseUtils.compareResultAsText(results.asJava, expected)
+  }
+
+  @Test
   def testGroupingKeyForwardIfNotUsed(): Unit = {
 
     // the grouping key needs to be forwarded to the intermediate DataSet, even
