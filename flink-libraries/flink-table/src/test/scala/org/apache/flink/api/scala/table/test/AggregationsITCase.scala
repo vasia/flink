@@ -71,6 +71,34 @@ class AggregationsITCase(mode: TestExecutionMode) extends MultipleProgramsTestBa
   }
 
   @Test
+  def testCombinableNonOverlapping(): Unit = {
+
+    val env = ExecutionEnvironment.getExecutionEnvironment
+    val t = env.fromElements(
+      (1: Byte, 1: Short, 1, 1L, 1.0f, 1.0d, "Hello"),
+      (2: Byte, 2: Short, 2, 2L, 2.0f, 2.0d, "Ciao")).toTable
+      .select('_1.sum, '_2.sum, '_3.sum, '_4.sum, '_5.sum, '_6.sum, '_7.count)
+
+    val expected = "3,3,3,3,3.0,3.0,2"
+    val results = t.toDataSet[Row].collect()
+    TestBaseUtils.compareResultAsText(results.asJava, expected)
+  }
+
+  @Test
+  def testCombinableOverlapping(): Unit = {
+
+    val env = ExecutionEnvironment.getExecutionEnvironment
+    val t = env.fromElements(
+      (1, 1L, 1.0f),
+      (2, 2L, 2.0f)).toTable
+      .select('_1.sum, '_1.min, '_2.sum, '_3.min, '_2.max, '_3.max)
+
+    val expected = "3,1,3,1.0,2,1.0"
+    val results = t.toDataSet[Row].collect()
+    TestBaseUtils.compareResultAsText(results.asJava, expected)
+  }
+
+  @Test
   def testProjection(): Unit = {
 
     val env = ExecutionEnvironment.getExecutionEnvironment

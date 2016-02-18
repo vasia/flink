@@ -28,11 +28,15 @@ import org.apache.flink.api.table.plan.PlanGenException
 import org.apache.flink.api.table.runtime.AggregateFunction
 import org.apache.flink.api.table.Row
 import org.apache.calcite.rel.`type`.RelDataType
+import org.apache.flink.api.table.runtime.CombinableAggregateFunction
 
 object AggregateFactory {
 
-  def createAggregateInstance(aggregateCalls: Seq[AggregateCall],
-      inputType: RelDataType, groupings: Array[Int]): RichGroupReduceFunction[Row, Row] = {
+  def createAggregateInstance(
+      aggregateCalls: Seq[AggregateCall],
+      inputType: RelDataType,
+      groupings: Array[Int],
+      combinable: Boolean): RichGroupReduceFunction[Row, Row] = {
 
     val fieldIndexes = new Array[Int](aggregateCalls.size)
     val aggregates = new Array[Aggregate[_ <: Any]](aggregateCalls.size)
@@ -129,8 +133,13 @@ object AggregateFactory {
           throw new PlanGenException("unsupported Function: " + unSupported.getName)
       }
     }
-
-    new AggregateFunction(aggregates, fieldIndexes, groupings)
+    if(combinable) {
+      println("...creating combinable function...")
+      new CombinableAggregateFunction(aggregates, fieldIndexes, groupings)
+    }
+    else {
+      new AggregateFunction(aggregates, fieldIndexes, groupings) 
+    }
   }
 
 }
