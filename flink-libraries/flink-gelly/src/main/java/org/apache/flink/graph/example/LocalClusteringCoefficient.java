@@ -19,17 +19,19 @@
 package org.apache.flink.graph.example;
 
 import org.apache.flink.api.common.ProgramDescription;
+import org.apache.flink.api.common.functions.FlatJoinFunction;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.java.DataSet;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.tuple.Tuple1;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.graph.Edge;
-import org.apache.flink.graph.EdgeDirection;
-import org.apache.flink.graph.EdgesFunction;
 import org.apache.flink.graph.Graph;
-import org.apache.flink.graph.NeighborsFunctionWithVertexValue;
 import org.apache.flink.graph.Vertex;
+import org.apache.flink.graph.VertexJoinFunction;
 import org.apache.flink.graph.utils.Tuple2ToVertexMap;
 import org.apache.flink.types.NullValue;
 import org.apache.flink.util.Collector;
@@ -46,67 +48,91 @@ public class LocalClusteringCoefficient implements ProgramDescription {
 		}
 
 		ExecutionEnvironment env = ExecutionEnvironment.getExecutionEnvironment();
-		DataSet<Vertex<Long, NullValue>> vertices = getVerticesDataSet(env);
 		DataSet<Edge<Long, NullValue>> edges = getEdgesDataSet(env);
-		Graph<Long, NullValue, NullValue> graph = Graph.fromDataSet(vertices, edges, env);
+		Graph<Long, Double, NullValue> graph = Graph.fromDataSet(edges,
+				new MapFunction<Long, Double>() {
+					public Double map(Long id) {
+						return 0.0;
+					}
+				}, env);
 
 		// get all neighbors and attach as vertex value
-		DataSet<Vertex<Long, HashSet<Long>>> verticesWithNeighbors =
-				graph.groupReduceOnEdges(new EdgesFunction<Long, NullValue, Tuple2<Long, HashSet<Long>>> () {
-			
-					public void iterateEdges(Iterable<Tuple2<Long, Edge<Long, NullValue>>> edges,
-					 Collector<Tuple2<Long, HashSet<Long>>> out) throws Exception {
-				
-						HashSet<Long> neighbors = new HashSet<Long>();
-						long vertexId = -1;
-						for (Tuple2<Long, Edge<Long, NullValue>> edge : edges) {
-							vertexId = edge.f0;
-							if (edge.f0.equals(edge.f1.f0)) {
-								neighbors.add(edge.f1.f1);
-							}
-							else {
-								neighbors.add(edge.f1.f0);
-							}
-						}
-						out.collect(new Tuple2<Long, HashSet<Long>>(vertexId, neighbors));
+		DataSet<Edge<Long, NullValue>> allEdges = graph.getUndirected().getEdges();
+
+		DataSet<Vertex<Long, HashSet<Long>>> verticesWithNeighbors = allEdges.map(
+				new MapFunction<Edge<Long,NullValue>, Tuple2<Long, HashSet<Long>>>() {
+					public Tuple2<Long, HashSet<Long>> map(Edge<Long, NullValue> edge) {
+						HashSet<Long> neighbors = new HashSet<>();
+						neighbors.add(edge.f1);
+						return new Tuple2<>(edge.f0, neighbors);
 					}
-			
-				}, EdgeDirection.ALL).map(new Tuple2ToVertexMap<Long, HashSet<Long>>());
+				}).groupBy(0).reduce(new ReduceFunction<Tuple2<Long,HashSet<Long>>>() {
+					public Tuple2<Long, HashSet<Long>> reduce(
+							Tuple2<Long, HashSet<Long>> set1,
+							Tuple2<Long, HashSet<Long>> set2) {
+						set1.f1.addAll(set2.f1);
+						return set1;
+					}
+				}).map(new Tuple2ToVertexMap<Long, HashSet<Long>>());
 
-		Graph<Long, HashSet<Long>, NullValue> graphWithNeighbors =
-				Graph.fromDataSet(verticesWithNeighbors, edges, env);
+		DataSet<Tuple3<Long, Long, Long>> candidates = verticesWithNeighbors.flatMap(
+				new FlatMapFunction<Vertex<Long,HashSet<Long>>, Tuple3<Long, Long, Long>>() {
+					public void flatMap(Vertex<Long, HashSet<Long>> vertex,
+							Collector<Tuple3<Long, Long, Long>> out) {
 
-		DataSet<Tuple2<Long, Double>> result = graphWithNeighbors.groupReduceOnNeighbors(
-				new NeighborsFunctionWithVertexValue<Long, HashSet<Long>, NullValue, Tuple2<Long, Double>>() {
+			    Object[] neighbors = vertex.f1.toArray();
+				Tuple3<Long, Long, Long> outTuple = new Tuple3<>();
+				outTuple.setField(vertex.f0, 0);
 
-					public void iterateNeighbors(
-							Vertex<Long, HashSet<Long>> vertex,
-							Iterable<Tuple2<Edge<Long, NullValue>, Vertex<Long, HashSet<Long>>>> neighbors,
-							Collector<Tuple2<Long, Double>> out) {
-						long numLinks = 0;
-						Vertex<Long, HashSet<Long>> currentNeighbor;
-						for (Tuple2<Edge<Long, NullValue>, Vertex<Long, HashSet<Long>>> n: neighbors) {
-							currentNeighbor = n.f1;
-							for (long nn: currentNeighbor.f1) {
-								if (vertex.getValue().contains(nn)) {
-									numLinks++;
-								}
+				for (int i = 0; i < neighbors.length; i++) {
+					for (int j = 0; j < neighbors.length; j++) {
+						if (i != j) {
+							outTuple.setField((long)neighbors[i], 1);
+							outTuple.setField((long)neighbors[j], 2);
+							if (vertex.f0.equals(2l)) {
+								System.out.println("###" + outTuple);
 							}
-						}
-						long setSize = vertex.getValue().size();
-						if (setSize < 2) {
-							out.collect(new Tuple2<Long, Double>(vertex.getId(), 0.0));
-						}
-						else {
-							out.collect(new Tuple2<Long, Double>(
-									vertex.getId(), (double)numLinks / (double)(setSize * (setSize - 1))));	
+							out.collect(outTuple);
 						}
 					}
-					
-				},
-				EdgeDirection.ALL);
+				}
+			}
+		});
 
-		result.print();
+		DataSet<Tuple2<Long, Long>> verticesWithNumLinks = 
+				candidates.join(edges).where(1, 2).equalTo(0, 1)
+				.<Tuple1<Long>>projectFirst(0).map(new MapFunction<Tuple1<Long>, Tuple2<Long, Long>>() {
+					public Tuple2<Long, Long> map(Tuple1<Long> value) {
+						return new Tuple2<>(value.f0, 1l);
+					}
+				}).groupBy(0).sum(1);
+		
+		DataSet<Tuple2<Long, Integer>> verticesWithSize = verticesWithNeighbors.map(
+				new MapFunction<Vertex<Long,HashSet<Long>>, Tuple2<Long, Integer>>() {
+
+					public Tuple2<Long, Integer> map(Vertex<Long, HashSet<Long>> vertex) {
+						return new Tuple2<>(vertex.getId(), vertex.getValue().size());
+					}
+		});
+
+		DataSet<Tuple2<Long, Double>> result = verticesWithNumLinks.join(verticesWithSize)
+				.where(0).equalTo(0).with(
+						new FlatJoinFunction<Tuple2<Long, Long>, Tuple2<Long, Integer>, Tuple2<Long, Double>>() {
+							public void join(Tuple2<Long, Long> vertexWithNumLinks,
+									Tuple2<Long, Integer> vertexWithSetSize,
+									Collector<Tuple2<Long, Double>> out) {
+								out.collect(new Tuple2<>(vertexWithNumLinks.f0,
+										(double)vertexWithNumLinks.f1 /
+										(double)(vertexWithSetSize.f1 * (vertexWithSetSize.f1 - 1))));
+							}
+				});
+
+		// print the result
+		graph.joinWithVertices(result, new VertexJoinFunction<Double, Double>() {
+			public Double vertexJoin(Double vertexValue, Double inputValue) {
+				return inputValue;
+			}
+		}).getVertices().print();
 
 	}
 
@@ -137,38 +163,11 @@ public class LocalClusteringCoefficient implements ProgramDescription {
 				edgesInputPath = args[1];
 				outputPath = args[2];
 			} else {
-				System.out.println("Executing Euclidean Graph Weighing example with default parameters and built-in default data.");
-				System.out.println("Provide parameters to read input data from files.");
-				System.out.println("See the documentation for the correct format of input files.");
-				System.err.println("Usage: EuclideanGraphWeighing <input vertices path> <input edges path>" +
-						" <output path>");
+				System.out.println("Executing Local Clustering Coefficient");
 				return false;
 			}
 		}
 		return true;
-	}
-
-	private static DataSet<Vertex<Long, NullValue>> getVerticesDataSet(ExecutionEnvironment env) {
-		if (fileOutput) {
-			return env.readCsvFile(verticesInputPath)
-					.lineDelimiter("\n")
-					.types(Long.class)
-					.map(new MapFunction<Tuple1<Long>, Vertex<Long, NullValue>>() {
-
-						@Override
-						public Vertex<Long, NullValue> map(Tuple1<Long> value) throws Exception {
-							return new Vertex<>(value.f0, NullValue.getInstance());
-						}
-					});
-		} else {
-			return env.fromElements(1l, 2l, 3l, 4l).map(
-					new MapFunction<Long, Vertex<Long, NullValue>>() {
-
-						public Vertex<Long, NullValue> map(Long value) {
-							return new Vertex<>(value, NullValue.getInstance());
-						}
-			});
-		}
 	}
 
 	private static DataSet<Edge<Long, NullValue>> getEdgesDataSet(ExecutionEnvironment env) {
@@ -184,11 +183,18 @@ public class LocalClusteringCoefficient implements ProgramDescription {
 						}
 					});
 		} else {
-			return env.fromElements(new Tuple2<Long, Long>(1l, 2l), new Tuple2<Long, Long>(1l, 3l),
-					new Tuple2<Long, Long>(1l, 4l), new Tuple2<Long, Long>(3l, 4l)).map(
-							new MapFunction<Tuple2<Long,Long>, Edge<Long, NullValue>>() {
-
-								public Edge<Long, NullValue> map(Tuple2<Long, Long> value) {
+			return env.fromElements(
+					new Tuple2<Long, Long>(1l, 3l), new Tuple2<Long, Long>(1l, 5l),
+					new Tuple2<Long, Long>(2l, 4l), new Tuple2<Long, Long>(2l, 5l), new Tuple2<Long, Long>(2l, 10l),
+					new Tuple2<Long, Long>(3l, 1l), new Tuple2<Long, Long>(3l, 5l), new Tuple2<Long, Long>(3l, 8l),
+					new Tuple2<Long, Long>(3l, 10l),
+					new Tuple2<Long, Long>(5l, 3l), new Tuple2<Long, Long>(5l, 4l), new Tuple2<Long, Long>(5l, 8l),
+					new Tuple2<Long, Long>(6l, 3l), new Tuple2<Long, Long>(6l, 4l),
+					new Tuple2<Long, Long>(7l, 4l),
+					new Tuple2<Long, Long>(8l, 1l),
+					new Tuple2<Long, Long>(9l, 4l)
+					).map(new MapFunction<Tuple2<Long,Long>, Edge<Long, NullValue>>() {
+							public Edge<Long, NullValue> map(Tuple2<Long, Long> value) {
 									return new Edge<>(value.f0, value.f1, NullValue.getInstance());
 								}
 					});
