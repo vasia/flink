@@ -183,21 +183,51 @@ public class LocalClusteringCoefficient implements ProgramDescription {
 						}
 					});
 		} else {
-			return env.fromElements(
-					new Tuple2<Long, Long>(1l, 3l), new Tuple2<Long, Long>(1l, 5l),
-					new Tuple2<Long, Long>(2l, 4l), new Tuple2<Long, Long>(2l, 5l), new Tuple2<Long, Long>(2l, 10l),
-					new Tuple2<Long, Long>(3l, 1l), new Tuple2<Long, Long>(3l, 5l), new Tuple2<Long, Long>(3l, 8l),
-					new Tuple2<Long, Long>(3l, 10l),
-					new Tuple2<Long, Long>(5l, 3l), new Tuple2<Long, Long>(5l, 4l), new Tuple2<Long, Long>(5l, 8l),
-					new Tuple2<Long, Long>(6l, 3l), new Tuple2<Long, Long>(6l, 4l),
-					new Tuple2<Long, Long>(7l, 4l),
-					new Tuple2<Long, Long>(8l, 1l),
-					new Tuple2<Long, Long>(9l, 4l)
-					).map(new MapFunction<Tuple2<Long,Long>, Edge<Long, NullValue>>() {
-							public Edge<Long, NullValue> map(Tuple2<Long, Long> value) {
-									return new Edge<>(value.f0, value.f1, NullValue.getInstance());
-								}
-					});
+			return getUnDirectedEdges(env);
 		}
+	}
+
+	/**
+	 * The graphalytics directed test input
+	 */
+	private static DataSet<Edge<Long, NullValue>> getDirectedEdges(ExecutionEnvironment env) {
+		return env.fromElements(
+				new Tuple2<Long, Long>(1l, 3l), new Tuple2<Long, Long>(1l, 5l),
+				new Tuple2<Long, Long>(2l, 4l), new Tuple2<Long, Long>(2l, 5l), new Tuple2<Long, Long>(2l, 10l),
+				new Tuple2<Long, Long>(3l, 1l), new Tuple2<Long, Long>(3l, 5l), new Tuple2<Long, Long>(3l, 8l),
+				new Tuple2<Long, Long>(3l, 10l),
+				new Tuple2<Long, Long>(5l, 3l), new Tuple2<Long, Long>(5l, 4l), new Tuple2<Long, Long>(5l, 8l),
+				new Tuple2<Long, Long>(6l, 3l), new Tuple2<Long, Long>(6l, 4l),
+				new Tuple2<Long, Long>(7l, 4l),
+				new Tuple2<Long, Long>(8l, 1l),
+				new Tuple2<Long, Long>(9l, 4l)
+				).map(new MapFunction<Tuple2<Long,Long>, Edge<Long, NullValue>>() {
+						public Edge<Long, NullValue> map(Tuple2<Long, Long> value) {
+								return new Edge<>(value.f0, value.f1, NullValue.getInstance());
+							}
+				});
+	}
+
+	/**
+	 * The graphalytics undirected test input
+	 */
+	private static DataSet<Edge<Long, NullValue>> getUnDirectedEdges(ExecutionEnvironment env) {
+		return env.fromElements(
+				new Tuple2<Long, Long>(2l, 3l), new Tuple2<Long, Long>(2l, 4l),
+				new Tuple2<Long, Long>(3l, 2l), new Tuple2<Long, Long>(3l, 4l), new Tuple2<Long, Long>(3l, 5l),
+				new Tuple2<Long, Long>(3l, 8l),
+				new Tuple2<Long, Long>(4l, 3l), new Tuple2<Long, Long>(4l, 2l),
+				new Tuple2<Long, Long>(5l, 3l), new Tuple2<Long, Long>(5l, 6l), new Tuple2<Long, Long>(5l, 8l),
+				new Tuple2<Long, Long>(6l, 5l), new Tuple2<Long, Long>(6l, 7l),
+				new Tuple2<Long, Long>(6l, 8l), new Tuple2<Long, Long>(6l, 9l), new Tuple2<Long, Long>(6l, 10l),
+				new Tuple2<Long, Long>(7l, 6l), new Tuple2<Long, Long>(7l, 9l),
+				new Tuple2<Long, Long>(8l, 3l), new Tuple2<Long, Long>(8l, 5l), new Tuple2<Long, Long>(8l, 6l),
+				new Tuple2<Long, Long>(9l, 6l), new Tuple2<Long, Long>(9l, 7l),
+				new Tuple2<Long, Long>(10l, 6l)
+				).map(new MapFunction<Tuple2<Long,Long>, Edge<Long, NullValue>>() {
+						public Edge<Long, NullValue> map(Tuple2<Long, Long> value) {
+								return new Edge<>(value.f0, value.f1, NullValue.getInstance());
+							}
+				});
 	}
 }
