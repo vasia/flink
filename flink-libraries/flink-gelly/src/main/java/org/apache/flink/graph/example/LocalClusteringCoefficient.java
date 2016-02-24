@@ -57,7 +57,10 @@ public class LocalClusteringCoefficient implements ProgramDescription {
 				}, env);
 
 		// get all neighbors and attach as vertex value
-		DataSet<Edge<Long, NullValue>> allEdges = graph.getUndirected().getEdges();
+		DataSet<Edge<Long, NullValue>> allEdges = edges;
+		if (!directed) {
+			allEdges = graph.getUndirected().getEdges(); 
+		}
 
 		DataSet<Vertex<Long, HashSet<Long>>> verticesWithNeighbors = allEdges.map(
 				new MapFunction<Edge<Long,NullValue>, Tuple2<Long, HashSet<Long>>>() {
@@ -154,6 +157,8 @@ public class LocalClusteringCoefficient implements ProgramDescription {
 
 	private static String outputPath = null;
 
+	private static Boolean directed = false;
+
 	private static boolean parseParameters(String[] args) {
 
 		if (args.length > 0) {
@@ -183,7 +188,12 @@ public class LocalClusteringCoefficient implements ProgramDescription {
 						}
 					});
 		} else {
-			return getUnDirectedEdges(env);
+			if (directed) {
+				return getDirectedEdges(env);
+			}
+			else {
+				return getUnDirectedEdges(env);	
+			}
 		}
 	}
 
