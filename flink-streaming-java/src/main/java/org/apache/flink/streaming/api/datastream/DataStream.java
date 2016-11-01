@@ -41,8 +41,10 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.io.CsvOutputFormat;
 import org.apache.flink.api.java.io.TextOutputFormat;
 import org.apache.flink.api.java.tuple.Tuple;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.InputTypeConfigurable;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
+import org.apache.flink.api.java.typeutils.TypeInfoParser;
 import org.apache.flink.core.fs.FileSystem.WriteMode;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.TimeCharacteristic;
@@ -50,12 +52,15 @@ import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.AssignerWithPeriodicWatermarks;
 import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks;
+import org.apache.flink.streaming.api.functions.LoopFunction;
+import org.apache.flink.streaming.api.functions.co.CoLoopFunction;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.TimestampExtractor;
 import org.apache.flink.streaming.api.functions.sink.OutputFormatSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.PrintSinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.sink.SocketClientSink;
+import org.apache.flink.streaming.api.graph.StreamScope;
 import org.apache.flink.streaming.api.functions.timestamps.AscendingTimestampExtractor;
 import org.apache.flink.streaming.api.functions.timestamps.BoundedOutOfOrdernessTimestampExtractor;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
@@ -68,6 +73,7 @@ import org.apache.flink.streaming.api.transformations.OneInputTransformation;
 import org.apache.flink.streaming.api.transformations.PartitionTransformation;
 import org.apache.flink.streaming.api.transformations.StreamTransformation;
 import org.apache.flink.streaming.api.transformations.UnionTransformation;
+import org.apache.flink.streaming.api.transformations.ScopeTransformation;
 import org.apache.flink.streaming.api.windowing.assigners.GlobalWindows;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeWindows;
@@ -212,8 +218,11 @@ public class DataStream<T> {
 	public final DataStream<T> union(DataStream<T>... streams) {
 		List<StreamTransformation<T>> unionedTransforms = new ArrayList<>();
 		unionedTransforms.add(this.transformation);
-
+		
 		for (DataStream<T> newStream : streams) {
+			if(!getScope().equals(newStream.transformation.getScope())){
+				throw new UnsupportedOperationException("Cannot union data streams across different nested iteration scopes");
+			}
 			if (!getType().equals(newStream.getType())) {
 				throw new IllegalArgumentException("Cannot union streams of different types: "
 						+ getType() + " and " + newStream.getType());
@@ -221,6 +230,7 @@ public class DataStream<T> {
 
 			unionedTransforms.add(newStream.getTransformation());
 		}
+
 		return new DataStream<>(this.environment, new UnionTransformation<>(unionedTransforms));
 	}
 
@@ -250,6 +260,9 @@ public class DataStream<T> {
 	 * @return The {@link ConnectedStreams}.
 	 */
 	public <R> ConnectedStreams<T, R> connect(DataStream<R> dataStream) {
+		if(!getScope().equals(dataStream.transformation.getScope())){
+			throw new UnsupportedOperationException("Cannot connect data streams across different nested iteration scopes");
+		}
 		return new ConnectedStreams<>(environment, this, dataStream);
 	}
 
@@ -511,6 +524,7 @@ public class DataStream<T> {
 	 * @return The iterative data stream created.
 	 */
 	@PublicEvolving
+	@Deprecated
 	public IterativeStream<T> iterate() {
 		return new IterativeStream<>(this, 0);
 	}
@@ -547,8 +561,53 @@ public class DataStream<T> {
 	 * @return The iterative data stream created.
 	 */
 	@PublicEvolving
+	@Deprecated
 	public IterativeStream<T> iterate(long maxWaitTimeMillis) {
 		return new IterativeStream<>(this, maxWaitTimeMillis);
+	}
+	
+	/**
+	 */
+	@PublicEvolving
+	public <R> DataStream<R> iterate(LoopFunction<T, R> loopFun) {
+		SingleOutputStreamOperator<T> scopedStream =
+			new SingleOutputStreamOperator<>(this.environment, new ScopeTransformation(this.transformation, ScopeTransformation.SCOPE_TYPE.INGRESS));
+		IterativeStream<T> iterativeStream = scopedStream.iterate();
+		Tuple2<DataStream<T>, DataStream<R>> outStreams =  loopFun.loop(iterativeStream);
+		iterativeStream.closeWith(outStreams.f0);
+		ScopeTransformation egressTransformation = new ScopeTransformation(outStreams.f1.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
+		return new SingleOutputStreamOperator<>(outStreams.f1.environment, egressTransformation);
+	}
+
+	/**
+	 */
+	@PublicEvolving
+	public <F,R> DataStream<R> iterateWithFeedback(CoLoopFunction<T, F, R> coLoopFun, String feedbackTypeString) {
+		return iterateWithFeedback(coLoopFun, TypeInfoParser.<F> parse(feedbackTypeString));
+	}
+	
+	/**
+	 */
+	@PublicEvolving
+	public <F,R> DataStream<R> iterateWithFeedback(CoLoopFunction<T, F, R> coLoopFun, Class<F> feedbackTypeClass) {
+		return iterateWithFeedback(coLoopFun, TypeExtractor.getForClass(feedbackTypeClass));
+	}
+	
+	/**
+	 */
+	@PublicEvolving
+	public <F,R> DataStream<R> iterateWithFeedback(CoLoopFunction<T, F, R> coLoopFun, TypeInformation<F> feedbackType) {
+		SingleOutputStreamOperator<T> scopedStream = 
+			new SingleOutputStreamOperator<>(this.environment, new ScopeTransformation<>(this.transformation, ScopeTransformation.SCOPE_TYPE.INGRESS));
+		IterativeStream.ConnectedIterativeStreams<T, F> iterativeStream = scopedStream.iterate().withFeedbackType(feedbackType);
+		Tuple2<DataStream<F>, DataStream<R>> outStreams = coLoopFun.loop(iterativeStream);
+		iterativeStream.closeWith(outStreams.f0);
+		ScopeTransformation egressTransformation = new ScopeTransformation(outStreams.f1.getTransformation(), ScopeTransformation.SCOPE_TYPE.EGRESS);
+		return new SingleOutputStreamOperator<>(outStreams.f1.environment, egressTransformation);
+	}
+	
+	private StreamScope getScope(){
+		return this.transformation.getScope();
 	}
 
 	/**
@@ -571,7 +630,7 @@ public class DataStream<T> {
 				Utils.getCallLocationName(), true);
 
 		return transform("Map", outType, new StreamMap<>(clean(mapper)));
-	}
+	}                       
 
 	/**
 	 * Applies a FlatMap transformation on a {@link DataStream}. The
@@ -699,6 +758,9 @@ public class DataStream<T> {
 	 * and window can be specified.
 	 */
 	public <T2> CoGroupedStreams<T, T2> coGroup(DataStream<T2> otherStream) {
+		if(!getScope().equals(otherStream.transformation.getScope())){
+			throw new UnsupportedOperationException("Cannot coGroup data streams across different nested iteration scopes");
+		}
 		return new CoGroupedStreams<>(this, otherStream);
 	}
 
@@ -707,6 +769,9 @@ public class DataStream<T> {
 	 * and window can be specified.
 	 */
 	public <T2> JoinedStreams<T, T2> join(DataStream<T2> otherStream) {
+		if(!getScope().equals(otherStream.transformation.getScope())){
+			throw new UnsupportedOperationException("Cannot join data streams across different nested iteration scopes");
+		}
 		return new JoinedStreams<>(this, otherStream);
 	}
 

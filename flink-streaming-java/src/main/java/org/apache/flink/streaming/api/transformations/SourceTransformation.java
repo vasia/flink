@@ -20,6 +20,7 @@ package org.apache.flink.streaming.api.transformations;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.streaming.api.graph.StreamScope;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.StreamSource;
 
@@ -50,7 +51,7 @@ public class SourceTransformation<T> extends StreamTransformation<T> {
 			StreamSource<T, ?> operator,
 			TypeInformation<T> outputType,
 			int parallelism) {
-		super(name, outputType, parallelism);
+		super(name, outputType, parallelism, new StreamScope());
 		this.operator = operator;
 	}
 
@@ -65,7 +66,7 @@ public class SourceTransformation<T> extends StreamTransformation<T> {
 	public Collection<StreamTransformation<?>> getTransitivePredecessors() {
 		return Collections.<StreamTransformation<?>>singleton(this);
 	}
-
+	
 	@Override
 	public final void setChainingStrategy(ChainingStrategy strategy) {
 		operator.setChainingStrategy(strategy);

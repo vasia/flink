@@ -29,6 +29,7 @@ import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * A {@link WindowAssigner} that windows elements into sessions based on the current processing
@@ -56,7 +57,7 @@ public class ProcessingTimeSessionWindows extends MergingWindowAssigner<Object, 
 	}
 
 	@Override
-	public Collection<TimeWindow> assignWindows(Object element, long timestamp, WindowAssignerContext context) {
+	public Collection<TimeWindow> assignWindows(Object element, List<Long> timeContext, long timestamp, WindowAssignerContext context) {
 		long currentProcessingTime = context.getCurrentProcessingTime();
 		return Collections.singletonList(new TimeWindow(currentProcessingTime, currentProcessingTime + sessionTimeout));
 	}

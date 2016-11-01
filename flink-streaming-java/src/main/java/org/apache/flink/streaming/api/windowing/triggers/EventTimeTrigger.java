@@ -21,6 +21,8 @@ package org.apache.flink.streaming.api.windowing.triggers;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 
+import java.util.List;
+
 /**
  * A {@link Trigger} that fires once the watermark passes the end of the window
  * to which a pane belongs.
@@ -34,19 +36,19 @@ public class EventTimeTrigger extends Trigger<Object, TimeWindow> {
 	private EventTimeTrigger() {}
 
 	@Override
-	public TriggerResult onElement(Object element, long timestamp, TimeWindow window, TriggerContext ctx) throws Exception {
-		if (window.maxTimestamp() <= ctx.getCurrentWatermark()) {
+	public TriggerResult onElement(Object element, List<Long> timeContext, long timestamp, TimeWindow window, TriggerContext ctx) throws Exception {
+		if (window.maxTimestamp() <= ctx.getCurrentWatermark(timeContext)) {
 			// if the watermark is already past the window fire immediately
 			return TriggerResult.FIRE;
 		} else {
-			ctx.registerEventTimeTimer(window.maxTimestamp());
+			ctx.registerEventTimeTimer(window.getTimeContext(), window.maxTimestamp());
 			return TriggerResult.CONTINUE;
 		}
 	}
 
 	@Override
-	public TriggerResult onEventTime(long time, TimeWindow window, TriggerContext ctx) {
-		return time == window.maxTimestamp() ?
+	public TriggerResult onEventTime(List<Long> timeContext, long time, TimeWindow window, TriggerContext ctx) {
+		return timeContext == window.getTimeContext() && time == window.maxTimestamp() ?
 			TriggerResult.FIRE :
 			TriggerResult.CONTINUE;
 	}
@@ -58,7 +60,7 @@ public class EventTimeTrigger extends Trigger<Object, TimeWindow> {
 
 	@Override
 	public void clear(TimeWindow window, TriggerContext ctx) throws Exception {
-		ctx.deleteEventTimeTimer(window.maxTimestamp());
+		ctx.deleteEventTimeTimer(window.getTimeContext(), window.maxTimestamp());
 	}
 
 	@Override
@@ -72,9 +74,9 @@ public class EventTimeTrigger extends Trigger<Object, TimeWindow> {
 		// only register a timer if the watermark is not yet past the end of the merged window
 		// this is in line with the logic in onElement(). If the watermark is past the end of
 		// the window onElement() will fire and setting a timer here would fire the window twice.
-		long windowMaxTimestamp = window.maxTimestamp();
-		if (windowMaxTimestamp > ctx.getCurrentWatermark()) {
-			ctx.registerEventTimeTimer(windowMaxTimestamp);
+		long windowMaxTimestamp =  window.maxTimestamp();
+		if (windowMaxTimestamp > ctx.getCurrentWatermark(window.getTimeContext())) {
+			ctx.registerEventTimeTimer(window.getTimeContext(), window.maxTimestamp());
 		}
 	}
 

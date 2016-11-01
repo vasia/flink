@@ -69,7 +69,7 @@ public class TwoInputTransformation<IN1, IN2, OUT> extends StreamTransformation<
 			TwoInputStreamOperator<IN1, IN2, OUT> operator,
 			TypeInformation<OUT> outputType,
 			int parallelism) {
-		super(name, outputType, parallelism);
+		super(name, outputType, parallelism, input1.getScope());
 		this.input1 = input1;
 		this.input2 = input2;
 		this.operator = operator;

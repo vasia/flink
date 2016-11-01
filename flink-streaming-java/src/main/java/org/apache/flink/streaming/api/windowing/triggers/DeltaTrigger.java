@@ -25,6 +25,8 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.streaming.api.functions.windowing.delta.DeltaFunction;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 
+import java.util.List;
+
 /**
  * A {@link Trigger} that fires based on a {@link DeltaFunction} and a threshold.
  *
@@ -50,7 +52,7 @@ public class DeltaTrigger<T, W extends Window> extends Trigger<T, W> {
 	}
 
 	@Override
-	public TriggerResult onElement(T element, long timestamp, W window, TriggerContext ctx) throws Exception {
+	public TriggerResult onElement(T element, List<Long> timeContext, long timestamp, W window, TriggerContext ctx) throws Exception {
 		ValueState<T> lastElementState = ctx.getPartitionedState(stateDesc);
 		if (lastElementState.value() == null) {
 			lastElementState.update(element);
@@ -64,7 +66,7 @@ public class DeltaTrigger<T, W extends Window> extends Trigger<T, W> {
 	}
 
 	@Override
-	public TriggerResult onEventTime(long time, W window, TriggerContext ctx) {
+	public TriggerResult onEventTime(List<Long> timeContext, long time, W window, TriggerContext ctx) {
 		return TriggerResult.CONTINUE;
 	}
 

@@ -1,0 +1,4 @@
+org.apache.flink.streaming.runtime.operators.windowing.AbstractAlignedProcessingTimeWindowOperator deleted but used in timekiller
+package org.apache.flink.streaming.runtime.io.StreamInputProcessor processInput merge is fishy..check conditions if problems occur
+package org.apache.flink.streaming.api.datastream.WindowedStream check commented out section under utilities...might be important to include after all
+package org.apache.flink.streaming.runtime.tasks.StreamTask line 1181 has a questionable type error, put explicit type for the time being

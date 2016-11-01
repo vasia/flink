@@ -25,6 +25,7 @@ import org.apache.flink.streaming.api.windowing.triggers.Trigger;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * A base {@link WindowAssigner} used to instantiate one of the deprecated
@@ -51,7 +52,7 @@ public class BaseAlignedWindowAssigner extends WindowAssigner<Object, TimeWindow
 	}
 
 	@Override
-	public Collection<TimeWindow> assignWindows(Object element, long timestamp, WindowAssignerContext context) {
+	public Collection<TimeWindow> assignWindows(Object element, List<Long> timeContext, long timestamp, WindowAssignerContext context) {
 		throw new UnsupportedOperationException("This assigner should not be used with the WindowOperator.");
 	}
 

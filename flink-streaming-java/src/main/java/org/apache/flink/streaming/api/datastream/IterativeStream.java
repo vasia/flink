@@ -65,6 +65,7 @@ public class IterativeStream<T> extends SingleOutputStreamOperator<T> {
 	 *
 	 */
 	@SuppressWarnings({ "unchecked", "rawtypes" })
+	@Deprecated
 	public DataStream<T> closeWith(DataStream<T> feedbackStream) {
 
 		Collection<StreamTransformation<?>> predecessors = feedbackStream.getTransformation().getTransitivePredecessors();
@@ -152,7 +153,7 @@ public class IterativeStream<T> extends SingleOutputStreamOperator<T> {
 					new DataStream<>(input.getExecutionEnvironment(),
 							new CoFeedbackTransformation<>(input.getParallelism(),
 									feedbackType,
-									waitTime)));
+									waitTime, input.transformation.getScope())));
 			this.coFeedbackTransformation = (CoFeedbackTransformation<F>) getSecondInput().getTransformation();
 		}
 

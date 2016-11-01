@@ -20,6 +20,10 @@ package org.apache.flink.streaming.api.watermark;
 
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
+import org.apache.commons.lang3.StringUtils;
+
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * A Watermark tells operators that no elements with a timestamp older or equal
@@ -39,21 +43,60 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
  * When an operator receives this it will know that no more input will be arriving in the future.
  */
 @PublicEvolving
-public final class Watermark extends StreamElement {
+public final class Watermark extends StreamElement implements Comparable<Watermark>{
 
 	/** The watermark that signifies end-of-event-time. */
 	public static final Watermark MAX_WATERMARK = new Watermark(Long.MAX_VALUE);
 
 	// ------------------------------------------------------------------------
-
-	/** The timestamp of the watermark in milliseconds. */
-	private final long timestamp;
+	
+	/** The timestamp of the watermark in milliseconds*/
+	private long timestamp;
+	private final List<Long> context;
+	private boolean iterationDone = false;
+	private boolean iterationOnly = false;
 
 	/**
 	 * Creates a new watermark with the given timestamp in milliseconds.
 	 */
 	public Watermark(long timestamp) {
 		this.timestamp = timestamp;
+		this.context = new LinkedList<>();
+	}
+
+	/**
+	 * Creates a new watermark from an existing one.
+	 */
+	public Watermark(Watermark watermark) {
+		this.timestamp = watermark.getTimestamp();
+		this.context = new LinkedList<>(watermark.getContext());
+	}
+
+	/**
+	 * Creates a new watermark with the given timestamp in milliseconds and a context.
+	 */
+	public Watermark(List<Long> context, long timestamp) {
+		this.timestamp = timestamp;
+		this.context = new LinkedList(context);
+	}
+
+	/**
+	 * Creates a new watermark with the given timestamp in milliseconds and a context.
+	 */
+	public Watermark(List<Long> context, long timestamp, boolean iterationDone) {
+		this.timestamp = timestamp;
+		this.context = new LinkedList(context);
+		this.iterationDone = iterationDone;
+	}
+
+	/**
+	 * Creates a new watermark with the given timestamp in milliseconds and a context.
+	 */
+	public Watermark(List<Long> context, long timestamp, boolean iterationDone, boolean iterationOnly) {
+		this.timestamp = timestamp;
+		this.context = new LinkedList(context);
+		this.iterationDone = iterationDone;
+		this.iterationOnly = iterationOnly;
 	}
 
 	/**
@@ -62,22 +105,56 @@ public final class Watermark extends StreamElement {
 	public long getTimestamp() {
 		return timestamp;
 	}
+	public List<Long> getFullTimestamp() {
+		List<Long> fullTimestamp = new LinkedList<>(context);
+		fullTimestamp.add(timestamp);
+		return fullTimestamp;
+	}
+	public List<Long> getContext() {return context; }
+
+	public void addNestedTimestamp(long timestamp) {
+		this.context.add(this.timestamp);
+		this.timestamp = timestamp;
+	}
+	public void removeNestedTimestamp() {
+		if(this.context.size() > 0) {
+			this.timestamp = this.context.remove(this.context.size()-1);
+		}
+	}
+
+	public void forwardTimestamp() {
+		timestamp = timestamp + 1;
+	}
+
+	public boolean iterationDone() { return iterationDone; }
+	public void setIterationDone(boolean iterationDone) {
+		this.iterationDone = iterationDone;
+	}
+
+	public boolean iterationOnly() { return iterationOnly; }
 
 	// ------------------------------------------------------------------------
 
 	@Override
 	public boolean equals(Object o) {
 		return this == o ||
-				o != null && o.getClass() == Watermark.class && ((Watermark) o).timestamp == this.timestamp;
+				o != null && o.getClass() == Watermark.class
+					&& ((Watermark) o).timestamp == this.timestamp
+					&& ((Watermark) o).context.equals(this.context);
 	}
 
 	@Override
 	public int hashCode() {
-		return (int) (timestamp ^ (timestamp >>> 32));
+		return (int) timestamp ^ context.hashCode();
 	}
 
 	@Override
 	public String toString() {
-		return "Watermark @ " + timestamp;
+		return "Watermark @ [" + StringUtils.join(context, ", ") + ", " + timestamp + "]";
+	}
+
+	@Override
+	public int compareTo(Watermark mark) {
+		return new Long(timestamp).compareTo(mark.getTimestamp());
 	}
 }

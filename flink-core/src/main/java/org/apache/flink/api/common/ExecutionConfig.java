@@ -175,6 +175,36 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 
 	// --------------------------------------------------------------------------------------------
 
+	private boolean experimentMetricsEnabled = false;
+	private int numWindows;
+	private long windowSize;
+	private String outputDir;
+
+
+	public void setExperimentConstants(int numWindows, long winSize, String outputDir){
+		this.numWindows = numWindows;
+		this.windowSize = winSize;
+		this.outputDir = outputDir;
+		this.experimentMetricsEnabled = true;
+	}
+
+	public int getNumWindows() {
+		return numWindows;
+	}
+	public long getWindowSize() {
+		return windowSize;
+	}
+	public String getOutputDir() { return outputDir; }
+
+
+	public boolean isExperimentMetricsEnabled() {
+		return experimentMetricsEnabled;
+	}
+
+	public void setExperimentMetricsEnabled(boolean experimentMetricsEnabled) {
+		this.experimentMetricsEnabled = experimentMetricsEnabled;
+	}
+
 	/**
 	 * Enables the ClosureCleaner. This analyzes user code functions and sets fields to null
 	 * that are not used. This will in most cases make closures or anonymous inner classes

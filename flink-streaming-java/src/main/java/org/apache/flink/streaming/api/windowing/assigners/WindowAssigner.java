@@ -27,6 +27,7 @@ import org.apache.flink.streaming.api.windowing.windows.Window;
 
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * A {@code WindowAssigner} assigns zero or more {@link Window Windows} to an element.
@@ -51,7 +52,7 @@ public abstract class WindowAssigner<T, W extends Window> implements Serializabl
 	 * @param timestamp The timestamp of the element.
 	 * @param context The {@link WindowAssignerContext} in which the assigner operates.
 	 */
-	public abstract Collection<W> assignWindows(T element, long timestamp, WindowAssignerContext context);
+	public abstract Collection<W> assignWindows(T element, List<Long> timeContext, long timestamp, WindowAssignerContext context);
 
 	/**
 	 * Returns the default trigger associated with this {@code WindowAssigner}.

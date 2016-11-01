@@ -44,7 +44,7 @@ public class SideOutputTransformation<T> extends StreamTransformation<T> {
 	private final OutputTag<T> tag;
 
 	public SideOutputTransformation(StreamTransformation<?> input, final OutputTag<T> tag) {
-		super("SideOutput", tag.getTypeInfo(), requireNonNull(input).getParallelism());
+		super("SideOutput", tag.getTypeInfo(), requireNonNull(input).getParallelism(), input.getScope());
 		this.input = input;
 		this.tag = requireNonNull(tag);
 	}

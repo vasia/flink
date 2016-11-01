@@ -222,7 +222,7 @@ public class CoBroadcastWithKeyedOperatorTest {
 
 		@Override
 		public void processElement(String value, ReadOnlyContext ctx, Collector<String> out) throws Exception {
-			ctx.timerService().registerEventTimeTimer(timerTS);
+			ctx.timerService().registerEventTimeTimer(new ArrayList<>(), timerTS);
 			out.collect("NON-BR:" + value + " WM:" + ctx.currentWatermark() + " TS:" + ctx.timestamp());
 		}
 
@@ -401,7 +401,7 @@ public class CoBroadcastWithKeyedOperatorTest {
 
 			assertFalse(iter.hasNext());
 
-			ctx.timerService().registerEventTimeTimer(timerTs);
+			ctx.timerService().registerEventTimeTimer(new ArrayList<>(), timerTs);
 		}
 
 		@Override

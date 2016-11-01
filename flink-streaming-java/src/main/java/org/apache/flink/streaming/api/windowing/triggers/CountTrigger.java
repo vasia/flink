@@ -25,6 +25,8 @@ import org.apache.flink.api.common.state.ReducingStateDescriptor;
 import org.apache.flink.api.common.typeutils.base.LongSerializer;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 
+import java.util.List;
+
 /**
  * A {@link Trigger} that fires once the count of elements in a pane reaches the given count.
  *
@@ -44,7 +46,7 @@ public class CountTrigger<W extends Window> extends Trigger<Object, W> {
 	}
 
 	@Override
-	public TriggerResult onElement(Object element, long timestamp, W window, TriggerContext ctx) throws Exception {
+	public TriggerResult onElement(Object element, List<Long> timeContext, long timestamp, W window, TriggerContext ctx) throws Exception {
 		ReducingState<Long> count = ctx.getPartitionedState(stateDesc);
 		count.add(1L);
 		if (count.get() >= maxCount) {
@@ -55,7 +57,7 @@ public class CountTrigger<W extends Window> extends Trigger<Object, W> {
 	}
 
 	@Override
-	public TriggerResult onEventTime(long time, W window, TriggerContext ctx) {
+	public TriggerResult onEventTime(List<Long> timeContext, long time, W window, TriggerContext ctx) {
 		return TriggerResult.CONTINUE;
 	}
 

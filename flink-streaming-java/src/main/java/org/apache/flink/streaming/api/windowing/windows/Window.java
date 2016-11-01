@@ -20,6 +20,9 @@ package org.apache.flink.streaming.api.windowing.windows;
 
 import org.apache.flink.annotation.PublicEvolving;
 
+import java.util.LinkedList;
+import java.util.List;
+
 /**
  * A {@code Window} is a grouping of elements into finite buckets. Windows have a maximum timestamp
  * which means that, at some point, all elements that go into one window will have arrived.
@@ -36,4 +39,7 @@ public abstract class Window {
 	 * @return The largest timestamp that still belongs to this window.
 	 */
 	public abstract long maxTimestamp();
+	public List<Long> getTimeContext() {
+		return new LinkedList<Long>();
+	}
 }

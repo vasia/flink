@@ -18,6 +18,7 @@
 
 package org.apache.flink.streaming.api.operators;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
@@ -63,7 +64,6 @@ import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.util.LatencyStats;
 import org.apache.flink.util.CloseableIterable;
 import org.apache.flink.util.ExceptionUtils;
-import org.apache.flink.util.IOUtils;
 import org.apache.flink.util.OutputTag;
 import org.apache.flink.util.Preconditions;
 
@@ -72,6 +72,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * Base class for all stream operators. Operators that contain a user function should extend the class
@@ -91,6 +92,9 @@ import java.io.Serializable;
 public abstract class AbstractStreamOperator<OUT>
 		implements StreamOperator<OUT>, Serializable {
 
+
+	public final static Logger logger = LoggerFactory.getLogger(AbstractStreamOperator.class);
+	
 	private static final long serialVersionUID = 1L;
 
 	/** The logger used by the operator class and its subclasses. */
@@ -132,7 +136,7 @@ public abstract class AbstractStreamOperator<OUT>
 	private transient KeySelector<?, ?> stateKeySelector2;
 
 	/** Backend for keyed state. This might be empty if we're not on a keyed stream. */
-	private transient AbstractKeyedStateBackend<?> keyedStateBackend;
+	protected transient AbstractKeyedStateBackend<?> keyedStateBackend;
 
 	/** Keyed state store view on the keyed backend. */
 	private transient DefaultKeyedStateStore keyedStateStore;
@@ -160,6 +164,7 @@ public abstract class AbstractStreamOperator<OUT>
 	private long combinedWatermark = Long.MIN_VALUE;
 	private long input1Watermark = Long.MIN_VALUE;
 	private long input2Watermark = Long.MIN_VALUE;
+	int scopeLevel;
 
 	// ------------------------------------------------------------------------
 	//  Life Cycle
@@ -691,6 +696,9 @@ public abstract class AbstractStreamOperator<OUT>
 		}
 	}
 
+	@Override
+	public int getContextLevel() { return container.getScope().getLevel(); }
+
 	// ------------------------------------------------------------------------
 	//  Watermark handling
 	// ------------------------------------------------------------------------
@@ -730,6 +738,8 @@ public abstract class AbstractStreamOperator<OUT>
 	}
 
 	public void processWatermark(Watermark mark) throws Exception {
+		String taskName = getRuntimeContext().getTaskName().length() < 10 ? getRuntimeContext().getTaskName() : getRuntimeContext().getTaskName().substring(0,10);
+		logger.info(taskName +" - "+getRuntimeContext().getIndexOfThisSubtask()+"  Received - "+ mark);
 		if (timeServiceManager != null) {
 			timeServiceManager.advanceWatermark(mark);
 		}
@@ -745,6 +755,9 @@ public abstract class AbstractStreamOperator<OUT>
 	}
 
 	public void processWatermark1(Watermark mark) throws Exception {
+		String taskName = getRuntimeContext().getTaskName().length() < 10 ? getRuntimeContext().getTaskName() : getRuntimeContext().getTaskName().substring(0,10);
+		logger.info(taskName +" - "+getRuntimeContext().getIndexOfThisSubtask()+"  Received 1 - "+ mark);
+		
 		input1Watermark = mark.getTimestamp();
 		long newMin = Math.min(input1Watermark, input2Watermark);
 		if (newMin > combinedWatermark) {
@@ -754,6 +767,9 @@ public abstract class AbstractStreamOperator<OUT>
 	}
 
 	public void processWatermark2(Watermark mark) throws Exception {
+		String taskName = getRuntimeContext().getTaskName().length() < 10 ? getRuntimeContext().getTaskName() : getRuntimeContext().getTaskName().substring(0,10);
+		logger.info(taskName +" - "+getRuntimeContext().getIndexOfThisSubtask()+"  Received 2 - "+ mark);
+		
 		input2Watermark = mark.getTimestamp();
 		long newMin = Math.min(input1Watermark, input2Watermark);
 		if (newMin > combinedWatermark) {
@@ -778,4 +794,7 @@ public abstract class AbstractStreamOperator<OUT>
 		return timeServiceManager == null ? 0 :
 			timeServiceManager.numEventTimeTimers();
 	}
+
+	@Override
+	public void sendMetrics(long windowEnd, List<Long> context) {}
 }

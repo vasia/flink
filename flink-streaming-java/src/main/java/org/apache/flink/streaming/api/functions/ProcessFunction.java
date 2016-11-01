@@ -25,6 +25,8 @@ import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 
+import java.util.List;
+
 /**
  * A function that processes elements of a stream.
  *
@@ -67,7 +69,7 @@ public abstract class ProcessFunction<I, O> extends AbstractRichFunction {
 	 * @throws Exception This method may throw exceptions. Throwing an exception will cause the operation
 	 *                   to fail and may trigger recovery.
 	 */
-	public abstract void processElement(I value, Context ctx, Collector<O> out) throws Exception;
+	public abstract void processElement(I value, Context ctx, List<Long> timeContext, Collector<O> out) throws Exception;
 
 	/**
 	 * Called when a timer set using {@link TimerService} fires.
@@ -82,11 +84,11 @@ public abstract class ProcessFunction<I, O> extends AbstractRichFunction {
 	 * @throws Exception This method may throw exceptions. Throwing an exception will cause the operation
 	 *                   to fail and may trigger recovery.
 	 */
-	public void onTimer(long timestamp, OnTimerContext ctx, Collector<O> out) throws Exception {}
+	public void onTimer(List<Long> timeContext, long timestamp, OnTimerContext ctx, Collector<O> out) throws Exception {}
 
 	/**
-	 * Information available in an invocation of {@link #processElement(Object, Context, Collector)}
-	 * or {@link #onTimer(long, OnTimerContext, Collector)}.
+	 * Information available in an invocation of {@link #processElement(Object, Context, List, Collector)}
+	 * or {@link #onTimer(List, long, OnTimerContext, Collector)}.
 	 */
 	public abstract class Context {
 
@@ -113,7 +115,7 @@ public abstract class ProcessFunction<I, O> extends AbstractRichFunction {
 	}
 
 	/**
-	 * Information available in an invocation of {@link #onTimer(long, OnTimerContext, Collector)}.
+	 * Information available in an invocation of {@link #onTimer(List, long, OnTimerContext, Collector)}.
 	 */
 	public abstract class OnTimerContext extends Context {
 		/**

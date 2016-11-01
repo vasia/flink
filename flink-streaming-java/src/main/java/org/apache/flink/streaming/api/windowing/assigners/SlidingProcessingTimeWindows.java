@@ -62,7 +62,7 @@ public class SlidingProcessingTimeWindows extends WindowAssigner<Object, TimeWin
 	}
 
 	@Override
-	public Collection<TimeWindow> assignWindows(Object element, long timestamp, WindowAssignerContext context) {
+	public Collection<TimeWindow> assignWindows(Object element, List<Long> timeContext, long timestamp, WindowAssignerContext context) {
 		timestamp = context.getCurrentProcessingTime();
 		List<TimeWindow> windows = new ArrayList<>((int) (size / slide));
 		long lastStart = TimeWindow.getWindowStartWithOffset(timestamp, offset, slide);

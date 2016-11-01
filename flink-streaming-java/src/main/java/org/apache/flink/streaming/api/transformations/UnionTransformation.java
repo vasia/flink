@@ -47,7 +47,7 @@ public class UnionTransformation<T> extends StreamTransformation<T> {
 	 * @param inputs The list of input {@code StreamTransformations}
 	 */
 	public UnionTransformation(List<StreamTransformation<T>> inputs) {
-		super("Union", inputs.get(0).getOutputType(), inputs.get(0).getParallelism());
+		super("Union", inputs.get(0).getOutputType(), inputs.get(0).getParallelism(), inputs.get(0).getScope());
 
 		for (StreamTransformation<T> input: inputs) {
 			if (!input.getOutputType().equals(getOutputType())) {
@@ -74,7 +74,7 @@ public class UnionTransformation<T> extends StreamTransformation<T> {
 		}
 		return result;
 	}
-
+	
 	@Override
 	public final void setChainingStrategy(ChainingStrategy strategy) {
 		throw new UnsupportedOperationException("Cannot set chaining strategy on Union Transformation.");

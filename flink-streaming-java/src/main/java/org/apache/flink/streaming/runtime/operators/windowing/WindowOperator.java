@@ -47,6 +47,7 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.runtime.state.VoidNamespaceSerializer;
+import org.apache.flink.streaming.api.datastream.IterativeWindowStream;
 import org.apache.flink.runtime.state.internal.InternalAppendingState;
 import org.apache.flink.runtime.state.internal.InternalListState;
 import org.apache.flink.runtime.state.internal.InternalMergingState;
@@ -65,10 +66,13 @@ import org.apache.flink.streaming.api.windowing.triggers.TriggerResult;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 import org.apache.flink.streaming.runtime.operators.windowing.functions.InternalWindowFunction;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.apache.flink.util.OutputTag;
 
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
@@ -97,6 +101,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	extends AbstractUdfStreamOperator<OUT, InternalWindowFunction<ACC, OUT, K, W>>
 	implements OneInputStreamOperator<IN, OUT>, Triggerable<K, W> {
+
+	public final static Logger logger = LoggerFactory.getLogger(WindowOperator.class);
 
 	private static final long serialVersionUID = 1L;
 
@@ -212,14 +218,18 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	}
 
 	@Override
-	public void open() throws Exception {
+	public void open () throws Exception {
+		open("window-timers");
+	}
+
+	public final void open(String timerServiceName) throws Exception {
 		super.open();
 
 		this.numLateRecordsDropped = metrics.counter(LATE_ELEMENTS_DROPPED_METRIC_NAME);
 		timestampedCollector = new TimestampedCollector<>(output);
 
 		internalTimerService =
-				getInternalTimerService("window-timers", windowSerializer, this);
+				getInternalTimerService(timerServiceName, windowSerializer, this);
 
 		triggerContext = new Context(null, null);
 		processContext = new WindowContext(null);
@@ -290,7 +300,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	@Override
 	public void processElement(StreamRecord<IN> element) throws Exception {
 		final Collection<W> elementWindows = windowAssigner.assignWindows(
-			element.getValue(), element.getTimestamp(), windowAssignerContext);
+			element.getValue(), element.getContext(), element.getTimestamp(), windowAssignerContext);
 
 		//if element is handled by none of assigned elementWindows
 		boolean isSkippedElement = true;
@@ -311,10 +321,10 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 							Collection<W> mergedWindows, W stateWindowResult,
 							Collection<W> mergedStateWindows) throws Exception {
 
-						if ((windowAssigner.isEventTime() && mergeResult.maxTimestamp() + allowedLateness <= internalTimerService.currentWatermark())) {
+						if ((windowAssigner.isEventTime() && mergeResult.maxTimestamp() + allowedLateness <= internalTimerService.currentWatermark(element.getContext()))) {
 							throw new UnsupportedOperationException("The end timestamp of an " +
 									"event-time window cannot become earlier than the current watermark " +
-									"by merging. Current watermark: " + internalTimerService.currentWatermark() +
+									"by merging. Current watermark: " + internalTimerService.currentWatermark(element.getContext()) +
 									" window: " + mergeResult);
 						} else if (!windowAssigner.isEventTime() && mergeResult.maxTimestamp() <= internalTimerService.currentProcessingTime()) {
 							throw new UnsupportedOperationException("The end timestamp of a " +
@@ -443,16 +453,15 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 			mergingWindows = null;
 		}
 
+
 		ACC contents = null;
 		if (windowState != null) {
 			contents = windowState.get();
 		}
 
-		if (contents != null) {
-			TriggerResult triggerResult = triggerContext.onEventTime(timer.getTimestamp());
-			if (triggerResult.isFire()) {
-				emitWindowContents(triggerContext.window, contents);
-			}
+if (contents != null) {		TriggerResult triggerResult = triggerContext.onEventTime(timer.getTimeContext(), timer.getTimestamp());
+		if (triggerResult.isFire()) {
+			emitWindowContents(triggerContext.window, contents);}
 			if (triggerResult.isPurge()) {
 				windowState.clear();
 			}
@@ -542,7 +551,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	 */
 	@SuppressWarnings("unchecked")
 	private void emitWindowContents(W window, ACC contents) throws Exception {
-		timestampedCollector.setAbsoluteTimestamp(window.maxTimestamp());
+		timestampedCollector.setAbsoluteTimestamp(window.getTimeContext(), window.maxTimestamp());
 		processContext.window = window;
 		userFunction.process(triggerContext.key, window, processContext, contents, timestampedCollector);
 	}
@@ -574,7 +583,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	 * of the given window.
 	 */
 	protected boolean isWindowLate(W window) {
-		return (windowAssigner.isEventTime() && (cleanupTime(window) <= internalTimerService.currentWatermark()));
+		return (windowAssigner.isEventTime() && (cleanupTime(window) <= internalTimerService.currentWatermark(window.getTimeContext())));
 	}
 
 	/**
@@ -585,7 +594,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	 */
 	protected boolean isElementLate(StreamRecord<IN> element){
 		return (windowAssigner.isEventTime()) &&
-			(element.getTimestamp() + allowedLateness <= internalTimerService.currentWatermark());
+			(element.getTimestamp() + allowedLateness <= internalTimerService.currentWatermark(element.getContext()));
 	}
 
 	/**
@@ -601,7 +610,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 		}
 
 		if (windowAssigner.isEventTime()) {
-			triggerContext.registerEventTimeTimer(cleanupTime);
+			triggerContext.registerEventTimeTimer(window.getTimeContext(), cleanupTime);
 		} else {
 			triggerContext.registerProcessingTimeTimer(cleanupTime);
 		}
@@ -619,7 +628,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 			return;
 		}
 		if (windowAssigner.isEventTime()) {
-			triggerContext.deleteEventTimeTimer(cleanupTime);
+			triggerContext.deleteEventTimeTimer(window.getTimeContext(), cleanupTime);
 		} else {
 			triggerContext.deleteProcessingTimeTimer(cleanupTime);
 		}
@@ -787,7 +796,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 
 		@Override
 		public long currentWatermark() {
-			return internalTimerService.currentWatermark();
+			return internalTimerService.currentWatermark(window.getTimeContext());
 		}
 
 		@Override
@@ -831,8 +840,8 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 			return WindowOperator.this.getMetricGroup();
 		}
 
-		public long getCurrentWatermark() {
-			return internalTimerService.currentWatermark();
+		public long getCurrentWatermark(List<Long> timeContext) {
+			return internalTimerService.currentWatermark(timeContext);
 		}
 
 		@Override
@@ -908,8 +917,8 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 		}
 
 		@Override
-		public void registerEventTimeTimer(long time) {
-			internalTimerService.registerEventTimeTimer(window, time);
+		public void registerEventTimeTimer(List<Long> timeContext, long time) {
+			internalTimerService.registerEventTimeTimer(window, timeContext, time);
 		}
 
 		@Override
@@ -918,20 +927,26 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 		}
 
 		@Override
-		public void deleteEventTimeTimer(long time) {
-			internalTimerService.deleteEventTimeTimer(window, time);
+		public void deleteEventTimeTimer(List<Long> timeContext, long time) {
+			internalTimerService.deleteEventTimeTimer(window, timeContext, time);
 		}
 
 		public TriggerResult onElement(StreamRecord<IN> element) throws Exception {
-			return trigger.onElement(element.getValue(), element.getTimestamp(), window, this);
+			logger.info("WINOP : Received element "+element);
+			return trigger.onElement(
+				element.getValue(),
+				element.getContext(),
+				element.getTimestamp(),
+				window, this);
 		}
 
 		public TriggerResult onProcessingTime(long time) throws Exception {
 			return trigger.onProcessingTime(time, window, this);
 		}
 
-		public TriggerResult onEventTime(long time) throws Exception {
-			return trigger.onEventTime(time, window, this);
+		public TriggerResult onEventTime(List<Long> timeContext, long time) throws Exception {
+			logger.info("WINOP : Received new Event Time "+time);
+			return trigger.onEventTime(timeContext, time, window, this);
 		}
 
 		public void onMerge(Collection<W> mergedWindows) throws Exception {
@@ -1029,4 +1044,5 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	public StateDescriptor<? extends AppendingState<IN, ACC>, ?> getStateDescriptor() {
 		return windowStateDescriptor;
 	}
+
 }

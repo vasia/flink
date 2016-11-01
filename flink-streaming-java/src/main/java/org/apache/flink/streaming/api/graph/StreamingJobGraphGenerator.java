@@ -170,6 +170,20 @@ public class StreamingJobGraphGenerator {
 					"This indicates that non-serializable types (like custom serializers) were registered");
 		}
 
+		jobGraph.getJobConfiguration().setInteger("parallelism", streamGraph.getExecutionConfig().getParallelism());
+
+		//add evaluation parameters for reporting if logging is enabled
+
+		if(streamGraph.getExecutionConfig().isExperimentMetricsEnabled()){
+			jobGraph.getJobConfiguration().setInteger("numWindows", streamGraph.getExecutionConfig().getNumWindows());
+			jobGraph.getJobConfiguration().setLong("winSize", streamGraph.getExecutionConfig().getWindowSize());
+			jobGraph.getJobConfiguration().setString("metricsOutputDir", streamGraph.getExecutionConfig().getOutputDir());
+			jobGraph.getJobConfiguration().setBoolean("experimentMetricsEnabled", true);
+		}
+		else{
+			jobGraph.getJobConfiguration().setBoolean("experimentMetricsEnabled", false);
+		}
+		
 		return jobGraph;
 	}
 
@@ -472,11 +486,13 @@ public class StreamingJobGraphGenerator {
 				|| vertexClass.equals(StreamIterationTail.class)) {
 			config.setIterationId(streamGraph.getBrokerID(vertexID));
 			config.setIterationWaitTime(streamGraph.getLoopTimeout(vertexID));
+			config.setTerminationFunction(vertex.getIterationTermination());
 		}
 
 		List<StreamEdge> allOutputs = new ArrayList<StreamEdge>(chainableOutputs);
 		allOutputs.addAll(nonChainableOutputs);
-
+		config.setScope(vertex.getScope());
+		
 		vertexConfigs.put(vertexID, config);
 	}
 
@@ -531,6 +547,7 @@ public class StreamingJobGraphGenerator {
 					headOperator.getChainingStrategy() == ChainingStrategy.ALWAYS)
 				&& (edge.getPartitioner() instanceof ForwardPartitioner)
 				&& upStreamVertex.getParallelism() == downStreamVertex.getParallelism()
+				&& upStreamVertex.getScope() == downStreamVertex.getScope()
 				&& streamGraph.isChainingEnabled();
 	}
 

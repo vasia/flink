@@ -63,6 +63,7 @@ import org.apache.flink.util.Collector;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertTrue;
@@ -198,6 +199,7 @@ public class AllWindowTranslationTest {
 
 				@Override
 				public TriggerResult onElement(String element,
+						List<Long> timeContext,
 						long timestamp,
 						TimeWindow window,
 						TriggerContext ctx) throws Exception {
@@ -212,7 +214,7 @@ public class AllWindowTranslationTest {
 				}
 
 				@Override
-				public TriggerResult onEventTime(long time,
+				public TriggerResult onEventTime(List<Long> timeContext, long time,
 						TimeWindow window,
 						TriggerContext ctx) throws Exception {
 					return null;

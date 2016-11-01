@@ -48,6 +48,7 @@ import org.apache.flink.streaming.runtime.tasks.StoppableSourceStreamTask;
 import org.apache.flink.streaming.runtime.tasks.StreamIterationHead;
 import org.apache.flink.streaming.runtime.tasks.StreamIterationTail;
 import org.apache.flink.streaming.runtime.tasks.TwoInputStreamTask;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 import org.apache.flink.util.OutputTag;
 
 import org.slf4j.Logger;
@@ -166,8 +167,9 @@ public class StreamGraph extends StreamingPlan {
 		StreamOperator<OUT> operatorObject,
 		TypeInformation<IN> inTypeInfo,
 		TypeInformation<OUT> outTypeInfo,
-		String operatorName) {
-		addOperator(vertexID, slotSharingGroup, operatorObject, inTypeInfo, outTypeInfo, operatorName);
+		String operatorName, 
+		StreamScope scope) {
+		addOperator(vertexID, slotSharingGroup, operatorObject, inTypeInfo, outTypeInfo, operatorName, scope);
 		sources.add(vertexID);
 	}
 
@@ -176,8 +178,9 @@ public class StreamGraph extends StreamingPlan {
 		StreamOperator<OUT> operatorObject,
 		TypeInformation<IN> inTypeInfo,
 		TypeInformation<OUT> outTypeInfo,
-		String operatorName) {
-		addOperator(vertexID, slotSharingGroup, operatorObject, inTypeInfo, outTypeInfo, operatorName);
+		String operatorName,
+		StreamScope scope) {
+		addOperator(vertexID, slotSharingGroup, operatorObject, inTypeInfo, outTypeInfo, operatorName, scope);
 		sinks.add(vertexID);
 	}
 
@@ -187,14 +190,15 @@ public class StreamGraph extends StreamingPlan {
 			StreamOperator<OUT> operatorObject,
 			TypeInformation<IN> inTypeInfo,
 			TypeInformation<OUT> outTypeInfo,
-			String operatorName) {
+			String operatorName,
+			StreamScope scopeLevel) {
 
 		if (operatorObject instanceof StoppableStreamSource) {
-			addNode(vertexID, slotSharingGroup, StoppableSourceStreamTask.class, operatorObject, operatorName);
+			addNode(vertexID, slotSharingGroup, StoppableSourceStreamTask.class, operatorObject, operatorName, scopeLevel);
 		} else if (operatorObject instanceof StreamSource) {
-			addNode(vertexID, slotSharingGroup, SourceStreamTask.class, operatorObject, operatorName);
+			addNode(vertexID, slotSharingGroup, SourceStreamTask.class, operatorObject, operatorName, scopeLevel);
 		} else {
-			addNode(vertexID, slotSharingGroup, OneInputStreamTask.class, operatorObject, operatorName);
+			addNode(vertexID, slotSharingGroup, OneInputStreamTask.class, operatorObject, operatorName, scopeLevel);
 		}
 
 		TypeSerializer<IN> inSerializer = inTypeInfo != null && !(inTypeInfo instanceof MissingTypeInfo) ? inTypeInfo.createSerializer(executionConfig) : null;
@@ -227,9 +231,10 @@ public class StreamGraph extends StreamingPlan {
 			TypeInformation<IN1> in1TypeInfo,
 			TypeInformation<IN2> in2TypeInfo,
 			TypeInformation<OUT> outTypeInfo,
-			String operatorName) {
+			String operatorName,
+			StreamScope scope) {
 
-		addNode(vertexID, slotSharingGroup, TwoInputStreamTask.class, taskOperatorObject, operatorName);
+		addNode(vertexID, slotSharingGroup, TwoInputStreamTask.class, taskOperatorObject, operatorName, scope);
 
 		TypeSerializer<OUT> outSerializer = (outTypeInfo != null) && !(outTypeInfo instanceof MissingTypeInfo) ?
 				outTypeInfo.createSerializer(executionConfig) : null;
@@ -252,7 +257,8 @@ public class StreamGraph extends StreamingPlan {
 		String slotSharingGroup,
 		Class<? extends AbstractInvokable> vertexClass,
 		StreamOperator<?> operatorObject,
-		String operatorName) {
+		String operatorName,
+		StreamScope scope) {
 
 		if (streamNodes.containsKey(vertexID)) {
 			throw new RuntimeException("Duplicate vertexID " + vertexID);
@@ -264,7 +270,8 @@ public class StreamGraph extends StreamingPlan {
 			operatorObject,
 			operatorName,
 			new ArrayList<OutputSelector<?>>(),
-			vertexClass);
+			vertexClass, 
+			scope);
 
 		streamNodes.put(vertexID, vertex);
 
@@ -589,23 +596,29 @@ public class StreamGraph extends StreamingPlan {
 		long timeout,
 		int parallelism,
 		int maxParallelism,
+		StreamScope scope, 
+		StreamIterationTermination iterationTermination,
 		ResourceSpec minResources,
 		ResourceSpec preferredResources) {
 		StreamNode source = this.addNode(sourceId,
 			null,
 			StreamIterationHead.class,
 			null,
-			"IterationSource-" + loopId);
+			"IterationSource-" + loopId,
+			scope);
 		sources.add(source.getId());
 		setParallelism(source.getId(), parallelism);
 		setMaxParallelism(source.getId(), maxParallelism);
 		setResources(source.getId(), minResources, preferredResources);
 
+		source.setIterationTermination(iterationTermination);
+		
 		StreamNode sink = this.addNode(sinkId,
 			null,
 			StreamIterationTail.class,
 			null,
-			"IterationSink-" + loopId);
+			"IterationSink-" + loopId,
+			scope);
 		sinks.add(sink.getId());
 		setParallelism(sink.getId(), parallelism);
 		setMaxParallelism(sink.getId(), parallelism);
@@ -616,7 +629,7 @@ public class StreamGraph extends StreamingPlan {
 		this.vertexIDtoBrokerID.put(sink.getId(), "broker-" + loopId);
 		this.vertexIDtoLoopTimeout.put(source.getId(), timeout);
 		this.vertexIDtoLoopTimeout.put(sink.getId(), timeout);
-
+		
 		return new Tuple2<>(source, sink);
 	}
 

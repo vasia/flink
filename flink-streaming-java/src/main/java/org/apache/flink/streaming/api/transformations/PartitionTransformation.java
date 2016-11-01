@@ -49,7 +49,7 @@ public class PartitionTransformation<T> extends StreamTransformation<T> {
 	 * @param partitioner The {@code StreamPartitioner}
 	 */
 	public PartitionTransformation(StreamTransformation<T> input, StreamPartitioner<T> partitioner) {
-		super("Partition", input.getOutputType(), input.getParallelism());
+		super("Partition", input.getOutputType(), input.getParallelism(), input.getScope());
 		this.input = input;
 		this.partitioner = partitioner;
 	}
@@ -76,7 +76,7 @@ public class PartitionTransformation<T> extends StreamTransformation<T> {
 		result.addAll(input.getTransitivePredecessors());
 		return result;
 	}
-
+	
 	@Override
 	public final void setChainingStrategy(ChainingStrategy strategy) {
 		throw new UnsupportedOperationException("Cannot set chaining strategy on Union Transformation.");

@@ -34,9 +34,9 @@ import org.apache.flink.runtime.io.network.api.CancelCheckpointMarker;
 import org.apache.flink.runtime.io.network.api.writer.ResultPartitionWriter;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
+import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.runtime.plugable.SerializationDelegate;
 import org.apache.flink.runtime.state.CheckpointStorage;
-import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.runtime.state.StateBackend;
 import org.apache.flink.runtime.state.StateBackendLoader;
 import org.apache.flink.runtime.state.TaskStateManager;
@@ -44,6 +44,7 @@ import org.apache.flink.runtime.taskmanager.DispatcherThreadFactory;
 import org.apache.flink.runtime.util.OperatorSubtaskDescriptionText;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.graph.StreamConfig;
+import org.apache.flink.streaming.api.graph.StreamScope;
 import org.apache.flink.streaming.api.graph.StreamEdge;
 import org.apache.flink.streaming.api.operators.OperatorSnapshotFinalizer;
 import org.apache.flink.streaming.api.operators.OperatorSnapshotFutures;
@@ -358,6 +359,11 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 			catch (Throwable t) {
 				// catch and log the exception to not replace the original exception
 				LOG.error("Could not shut down async checkpoint threads", t);
+			}
+
+			// release the output resources. this method should never fail.
+			if (operatorChain != null) {
+				operatorChain.releaseOutputs();
 			}
 
 			// we must! perform this cleanup
@@ -769,6 +775,10 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 		}
 		return timerService;
 	}
+	
+	public StreamScope getScope(){
+		return configuration.getScope(Thread.currentThread().getContextClassLoader());
+	}
 
 	/**
 	 * Handles an exception thrown by another thread (e.g. a TriggerTask),
@@ -1168,7 +1178,7 @@ public abstract class StreamTask<OUT, OP extends StreamOperator<OUT>>
 		for (int i = 0; i < outEdgesInOrder.size(); i++) {
 			StreamEdge edge = outEdgesInOrder.get(i);
 			streamRecordWriters.add(
-				createStreamRecordWriter(
+				StreamTask.<OUT>createStreamRecordWriter(
 					edge,
 					i,
 					environment,

@@ -27,6 +27,8 @@ import org.apache.flink.api.common.typeutils.base.LongSerializer;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 
+import java.util.List;
+
 /**
  * A {@link Trigger} that continuously fires based on a given time interval. This fires based
  * on {@link org.apache.flink.streaming.api.watermark.Watermark Watermarks}.
@@ -50,20 +52,20 @@ public class ContinuousEventTimeTrigger<W extends Window> extends Trigger<Object
 	}
 
 	@Override
-	public TriggerResult onElement(Object element, long timestamp, W window, TriggerContext ctx) throws Exception {
+	public TriggerResult onElement(Object element, List<Long> timeContext, long timestamp, W window, TriggerContext ctx) throws Exception {
 
-		if (window.maxTimestamp() <= ctx.getCurrentWatermark()) {
+		if (window.maxTimestamp() <= ctx.getCurrentWatermark(timeContext)) {
 			// if the watermark is already past the window fire immediately
 			return TriggerResult.FIRE;
 		} else {
-			ctx.registerEventTimeTimer(window.maxTimestamp());
+			ctx.registerEventTimeTimer(timeContext, window.maxTimestamp());
 		}
 
 		ReducingState<Long> fireTimestamp = ctx.getPartitionedState(stateDesc);
 		if (fireTimestamp.get() == null) {
 			long start = timestamp - (timestamp % interval);
 			long nextFireTimestamp = start + interval;
-			ctx.registerEventTimeTimer(nextFireTimestamp);
+			ctx.registerEventTimeTimer(timeContext, nextFireTimestamp);
 			fireTimestamp.add(nextFireTimestamp);
 		}
 
@@ -71,7 +73,7 @@ public class ContinuousEventTimeTrigger<W extends Window> extends Trigger<Object
 	}
 
 	@Override
-	public TriggerResult onEventTime(long time, W window, TriggerContext ctx) throws Exception {
+	public TriggerResult onEventTime(List<Long> timeContext, long time, W window, TriggerContext ctx) throws Exception {
 
 		if (time == window.maxTimestamp()){
 			return TriggerResult.FIRE;
@@ -84,7 +86,7 @@ public class ContinuousEventTimeTrigger<W extends Window> extends Trigger<Object
 		if (fireTimestamp != null && fireTimestamp == time) {
 			fireTimestampState.clear();
 			fireTimestampState.add(time + interval);
-			ctx.registerEventTimeTimer(time + interval);
+			ctx.registerEventTimeTimer(timeContext,time + interval);
 			return TriggerResult.FIRE;
 		}
 
@@ -101,7 +103,7 @@ public class ContinuousEventTimeTrigger<W extends Window> extends Trigger<Object
 		ReducingState<Long> fireTimestamp = ctx.getPartitionedState(stateDesc);
 		Long timestamp = fireTimestamp.get();
 		if (timestamp != null) {
-			ctx.deleteEventTimeTimer(timestamp);
+			ctx.deleteEventTimeTimer(window.getTimeContext(), timestamp);
 			fireTimestamp.clear();
 		}
 	}
@@ -116,7 +118,7 @@ public class ContinuousEventTimeTrigger<W extends Window> extends Trigger<Object
 		ctx.mergePartitionedState(stateDesc);
 		Long nextFireTimestamp = ctx.getPartitionedState(stateDesc).get();
 		if (nextFireTimestamp != null) {
-			ctx.registerEventTimeTimer(nextFireTimestamp);
+			ctx.registerEventTimeTimer(window.getTimeContext(), nextFireTimestamp);
 		}
 	}
 

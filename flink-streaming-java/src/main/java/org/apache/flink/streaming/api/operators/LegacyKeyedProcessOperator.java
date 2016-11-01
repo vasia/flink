@@ -71,7 +71,7 @@ public class LegacyKeyedProcessOperator<K, IN, OUT>
 
 	@Override
 	public void onEventTime(InternalTimer<K, VoidNamespace> timer) throws Exception {
-		collector.setAbsoluteTimestamp(timer.getTimestamp());
+		collector.setAbsoluteTimestamp(timer.getTimeContext(), timer.getTimestamp());
 		invokeUserFunction(TimeDomain.EVENT_TIME, timer);
 	}
 
@@ -85,7 +85,7 @@ public class LegacyKeyedProcessOperator<K, IN, OUT>
 	public void processElement(StreamRecord<IN> element) throws Exception {
 		collector.setTimestamp(element);
 		context.element = element;
-		userFunction.processElement(element.getValue(), context, collector);
+		userFunction.processElement(element.getValue(), context, element.getContext(), collector);
 		context.element = null;
 	}
 
@@ -94,7 +94,7 @@ public class LegacyKeyedProcessOperator<K, IN, OUT>
 			InternalTimer<K, VoidNamespace> timer) throws Exception {
 		onTimerContext.timeDomain = timeDomain;
 		onTimerContext.timer = timer;
-		userFunction.onTimer(timer.getTimestamp(), onTimerContext, collector);
+		userFunction.onTimer(timer.getTimeContext(), timer.getTimestamp(), onTimerContext, collector);
 		onTimerContext.timeDomain = null;
 		onTimerContext.timer = null;
 	}

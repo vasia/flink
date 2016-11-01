@@ -124,7 +124,7 @@ public class CoBroadcastWithKeyedOperator<KS, IN1, IN2, OUT>
 
 	@Override
 	public void onEventTime(InternalTimer<KS, VoidNamespace> timer) throws Exception {
-		collector.setAbsoluteTimestamp(timer.getTimestamp());
+		collector.setAbsoluteTimestamp(timer.getTimeContext(), timer.getTimestamp());
 		onTimerContext.timeDomain = TimeDomain.EVENT_TIME;
 		onTimerContext.timer = timer;
 		userFunction.onTimer(timer.getTimestamp(), onTimerContext, collector);
@@ -206,7 +206,7 @@ public class CoBroadcastWithKeyedOperator<KS, IN1, IN2, OUT>
 
 		@Override
 		public long currentWatermark() {
-			return timerService.currentWatermark();
+			return timerService.currentWatermark(element.getContext());
 		}
 
 		@Override
@@ -266,7 +266,7 @@ public class CoBroadcastWithKeyedOperator<KS, IN1, IN2, OUT>
 
 		@Override
 		public long currentWatermark() {
-			return timerService.currentWatermark();
+			return timerService.currentWatermark(element.getContext());
 		}
 
 		@Override
@@ -343,7 +343,7 @@ public class CoBroadcastWithKeyedOperator<KS, IN1, IN2, OUT>
 
 		@Override
 		public long currentWatermark() {
-			return timerService.currentWatermark();
+			return timerService.currentWatermark(timer.getTimeContext());
 		}
 
 		@Override

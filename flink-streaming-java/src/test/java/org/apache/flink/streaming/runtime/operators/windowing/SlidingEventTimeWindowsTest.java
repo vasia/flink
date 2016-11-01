@@ -29,6 +29,8 @@ import org.apache.flink.util.TestLogger;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
+
 import static org.apache.flink.streaming.runtime.operators.windowing.StreamRecordMatchers.timeWindow;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -52,21 +54,21 @@ public class SlidingEventTimeWindowsTest extends TestLogger {
 		SlidingEventTimeWindows assigner =
 				SlidingEventTimeWindows.of(Time.milliseconds(5000), Time.milliseconds(1000));
 
-		assertThat(assigner.assignWindows("String", 0L, mockContext), containsInAnyOrder(
+		assertThat(assigner.assignWindows("String", new ArrayList<>(), 0L, mockContext), containsInAnyOrder(
 				timeWindow(-4000, 1000),
 				timeWindow(-3000, 2000),
 				timeWindow(-2000, 3000),
 				timeWindow(-1000, 4000),
 				timeWindow(0, 5000)));
 
-		assertThat(assigner.assignWindows("String", 4999L, mockContext), containsInAnyOrder(
+		assertThat(assigner.assignWindows("String", new ArrayList<>(), 4999L, mockContext), containsInAnyOrder(
 				timeWindow(0, 5000),
 				timeWindow(1000, 6000),
 				timeWindow(2000, 7000),
 				timeWindow(3000, 8000),
 				timeWindow(4000, 9000)));
 
-		assertThat(assigner.assignWindows("String", 5000L, mockContext), containsInAnyOrder(
+		assertThat(assigner.assignWindows("String", new ArrayList<>(), 5000L, mockContext), containsInAnyOrder(
 				timeWindow(1000, 6000),
 				timeWindow(2000, 7000),
 				timeWindow(3000, 8000),
@@ -82,21 +84,21 @@ public class SlidingEventTimeWindowsTest extends TestLogger {
 		SlidingEventTimeWindows assigner =
 				SlidingEventTimeWindows.of(Time.milliseconds(5000), Time.milliseconds(1000), Time.milliseconds(100));
 
-		assertThat(assigner.assignWindows("String", 100L, mockContext), containsInAnyOrder(
+		assertThat(assigner.assignWindows("String", new ArrayList<>(), 100L, mockContext), containsInAnyOrder(
 				timeWindow(-3900, 1100),
 				timeWindow(-2900, 2100),
 				timeWindow(-1900, 3100),
 				timeWindow(-900, 4100),
 				timeWindow(100, 5100)));
 
-		assertThat(assigner.assignWindows("String", 5099L, mockContext), containsInAnyOrder(
+		assertThat(assigner.assignWindows("String", new ArrayList<>(), 5099L, mockContext), containsInAnyOrder(
 				timeWindow(100, 5100),
 				timeWindow(1100, 6100),
 				timeWindow(2100, 7100),
 				timeWindow(3100, 8100),
 				timeWindow(4100, 9100)));
 
-		assertThat(assigner.assignWindows("String", 5100L, mockContext), containsInAnyOrder(
+		assertThat(assigner.assignWindows("String", new ArrayList<>(), 5100L, mockContext), containsInAnyOrder(
 				timeWindow(1100, 6100),
 				timeWindow(2100, 7100),
 				timeWindow(3100, 8100),
@@ -113,21 +115,21 @@ public class SlidingEventTimeWindowsTest extends TestLogger {
 
 		SlidingEventTimeWindows assigner = SlidingEventTimeWindows.of(Time.seconds(5), Time.seconds(1), Time.milliseconds(500));
 
-		assertThat(assigner.assignWindows("String", 100L, mockContext), containsInAnyOrder(
+		assertThat(assigner.assignWindows("String", new ArrayList<>(), 100L, mockContext), containsInAnyOrder(
 				timeWindow(-4500, 500),
 				timeWindow(-3500, 1500),
 				timeWindow(-2500, 2500),
 				timeWindow(-1500, 3500),
 				timeWindow(-500, 4500)));
 
-		assertThat(assigner.assignWindows("String", 5499L, mockContext), containsInAnyOrder(
+		assertThat(assigner.assignWindows("String", new ArrayList<>(), 5499L, mockContext), containsInAnyOrder(
 				timeWindow(500, 5500),
 				timeWindow(1500, 6500),
 				timeWindow(2500, 7500),
 				timeWindow(3500, 8500),
 				timeWindow(4500, 9500)));
 
-		assertThat(assigner.assignWindows("String", 5100L, mockContext), containsInAnyOrder(
+		assertThat(assigner.assignWindows("String", new ArrayList<>(), 5100L, mockContext), containsInAnyOrder(
 				timeWindow(500, 5500),
 				timeWindow(1500, 6500),
 				timeWindow(2500, 7500),

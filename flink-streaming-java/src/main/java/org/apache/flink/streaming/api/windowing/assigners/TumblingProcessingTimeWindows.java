@@ -28,6 +28,7 @@ import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * A {@link WindowAssigner} that windows elements into windows based on the current
@@ -58,7 +59,7 @@ public class TumblingProcessingTimeWindows extends WindowAssigner<Object, TimeWi
 	}
 
 	@Override
-	public Collection<TimeWindow> assignWindows(Object element, long timestamp, WindowAssignerContext context) {
+	public Collection<TimeWindow> assignWindows(Object element, List<Long> timeContext, long timestamp, WindowAssignerContext context) {
 		final long now = context.getCurrentProcessingTime();
 		long start = TimeWindow.getWindowStartWithOffset(now, offset, size);
 		return Collections.singletonList(new TimeWindow(start, start + size));

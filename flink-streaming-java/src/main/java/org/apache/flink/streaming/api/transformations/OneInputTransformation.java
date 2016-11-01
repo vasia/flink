@@ -63,7 +63,7 @@ public class OneInputTransformation<IN, OUT> extends StreamTransformation<OUT> {
 			OneInputStreamOperator<IN, OUT> operator,
 			TypeInformation<OUT> outputType,
 			int parallelism) {
-		super(name, outputType, parallelism);
+		super(name, outputType, parallelism, input.getScope());
 		this.input = input;
 		this.operator = operator;
 	}

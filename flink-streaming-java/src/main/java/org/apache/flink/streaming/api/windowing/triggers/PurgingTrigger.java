@@ -22,6 +22,8 @@ import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 
+import java.util.List;
+
 /**
  * A trigger that can turn any {@link Trigger} into a purging {@code Trigger}.
  *
@@ -42,14 +44,14 @@ public class PurgingTrigger<T, W extends Window> extends Trigger<T, W> {
 	}
 
 	@Override
-	public TriggerResult onElement(T element, long timestamp, W window, TriggerContext ctx) throws Exception {
-		TriggerResult triggerResult = nestedTrigger.onElement(element, timestamp, window, ctx);
+	public TriggerResult onElement(T element, List<Long> timeContext, long timestamp, W window, TriggerContext ctx) throws Exception {
+		TriggerResult triggerResult = nestedTrigger.onElement(element, timeContext, timestamp, window, ctx);
 		return triggerResult.isFire() ? TriggerResult.FIRE_AND_PURGE : triggerResult;
 	}
 
 	@Override
-	public TriggerResult onEventTime(long time, W window, TriggerContext ctx) throws Exception {
-		TriggerResult triggerResult = nestedTrigger.onEventTime(time, window, ctx);
+	public TriggerResult onEventTime(List<Long> timeContext, long time, W window, TriggerContext ctx) throws Exception {
+		TriggerResult triggerResult = nestedTrigger.onEventTime(timeContext, time, window, ctx);
 		return triggerResult.isFire() ? TriggerResult.FIRE_AND_PURGE : triggerResult;
 	}
 

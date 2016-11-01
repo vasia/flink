@@ -29,6 +29,8 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.util.OutputTag;
 
+import java.util.List;
+
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
@@ -63,10 +65,15 @@ public class CoProcessOperator<IN1, IN2, OUT>
 	}
 
 	@Override
+	public void sendMetrics(long windowEnd, List<Long> context) {
+		
+	}
+
+	@Override
 	public void processElement1(StreamRecord<IN1> element) throws Exception {
 		collector.setTimestamp(element);
 		context.element = element;
-		userFunction.processElement1(element.getValue(), context, collector);
+		userFunction.processElement1(element.getValue(), context, element.getContext(), collector);
 		context.element = null;
 	}
 
@@ -74,7 +81,7 @@ public class CoProcessOperator<IN1, IN2, OUT>
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
 		collector.setTimestamp(element);
 		context.element = element;
-		userFunction.processElement2(element.getValue(), context, collector);
+		userFunction.processElement2(element.getValue(), context, element.getContext(), collector);
 		context.element = null;
 	}
 
@@ -114,9 +121,10 @@ public class CoProcessOperator<IN1, IN2, OUT>
 		}
 
 		@Override
-		public long currentWatermark() {
+		public long currentWatermark(List<Long> timeContext) {
 			return currentWatermark;
 		}
+		
 
 		@Override
 		public void registerProcessingTimeTimer(long time) {
@@ -124,9 +132,10 @@ public class CoProcessOperator<IN1, IN2, OUT>
 		}
 
 		@Override
-		public void registerEventTimeTimer(long time) {
+		public void registerEventTimeTimer(List<Long> timeContext, long time) {
 			throw new UnsupportedOperationException("Setting timers is only supported on a keyed streams.");
 		}
+		
 
 		@Override
 		public TimerService timerService() {

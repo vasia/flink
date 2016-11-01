@@ -1,4 +1,8 @@
-# Apache Flink
+# Time-Killer
+Time-Killer is an upgrade of Apache Flink to natively support different iterative models and advanced progress tracking.
+Read more @ [Approaches (Wiki)](https://github.com/farao/thesis-flink/wiki)
+
+## Apache Flink
 
 Apache Flink is an open source stream processing framework with powerful stream- and batch-processing capabilities.
 

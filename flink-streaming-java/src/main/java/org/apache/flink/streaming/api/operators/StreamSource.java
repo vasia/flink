@@ -89,9 +89,10 @@ public class StreamSource<OUT, SRC extends SourceFunction<OUT>>
 			// if we get here, then the user function either exited after being done (finite source)
 			// or the function was canceled or stopped. For the finite source case, we should emit
 			// a final watermark that indicates that we reached the end of event-time
-			if (!isCanceledOrStopped()) {
-				ctx.emitWatermark(Watermark.MAX_WATERMARK);
-			}
+
+			//if (!isCanceledOrStopped()) {
+			//	ctx.emitWatermark(Watermark.MAX_WATERMARK);
+			//}
 		} finally {
 			// make sure that the context is closed in any case
 			ctx.close();

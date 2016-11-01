@@ -64,7 +64,7 @@ public class SlidingEventTimeWindows extends WindowAssigner<Object, TimeWindow> 
 	}
 
 	@Override
-	public Collection<TimeWindow> assignWindows(Object element, long timestamp, WindowAssignerContext context) {
+	public Collection<TimeWindow> assignWindows(Object element, List<Long> timeContext, long timestamp, WindowAssignerContext context) {
 		if (timestamp > Long.MIN_VALUE) {
 			List<TimeWindow> windows = new ArrayList<>((int) (size / slide));
 			long lastStart = TimeWindow.getWindowStartWithOffset(timestamp, offset, slide);

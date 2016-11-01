@@ -1,0 +1,8 @@
+./ssh EXTERNAL_IP
+
+Logs into the (Job Manager) server with the given ip and opens a proxy forwarding on port 8081 for Flinks web interface.
+
+
+./rsync-data.sh EXTERNAL_IP INTERNAL_IP
+
+Syncs the current project directory with the (Job Manager) server and instructs the (Job Manager) server to distribute it to the other (Task Manager) servers. The other (Task Manager) servers need to be listed line by line with domain or ip in the 'slaves' file. The arguments are the external and internal ip/domain of the (Job Manager) server.

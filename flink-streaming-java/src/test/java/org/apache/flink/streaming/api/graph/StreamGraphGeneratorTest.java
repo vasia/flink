@@ -48,6 +48,8 @@ import org.apache.flink.streaming.util.NoOpIntMap;
 
 import org.junit.Test;
 
+import java.util.List;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -268,7 +270,8 @@ public class StreamGraphGeneratorTest {
 
 		StreamPartitioner<?> streamPartitioner = keyedResultNode.getInEdges().get(0).getPartitioner();
 	}
-
+	
+	
 	/**
 	 * Tests that the global and operator-wide max parallelism setting is respected.
 	 */
@@ -481,6 +484,11 @@ public class StreamGraphGeneratorTest {
 
 		@Override
 		public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<Integer>> output) {}
+
+		@Override
+		public void sendMetrics(long windowEnd, List<Long> context) {
+			
+		}
 	}
 
 	private static class OutputTypeConfigurableOperationWithOneInput
@@ -510,6 +518,11 @@ public class StreamGraphGeneratorTest {
 		@Override
 		public void setOutputType(TypeInformation<Integer> outTypeInfo, ExecutionConfig executionConfig) {
 			tpeInformation = outTypeInfo;
+		}
+
+		@Override
+		public void sendMetrics(long windowEnd, List<Long> context) {
+			
 		}
 	}
 

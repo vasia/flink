@@ -21,6 +21,7 @@ package org.apache.flink.streaming.runtime.streamstatus;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.flink.streaming.runtime.io.ProgressTrackingHandler;
 import org.apache.flink.util.Preconditions;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
@@ -64,6 +65,10 @@ public class StatusWatermarkValve {
 	/** The last stream status emitted from the valve. */
 	private StreamStatus lastOutputStreamStatus;
 
+	/** The local progress tracking logic is computed here*/
+	private ProgressTrackingHandler progressHandler;
+	
+
 	/**
 	 * Returns a new {@code StatusWatermarkValve}.
 	 *
@@ -84,6 +89,7 @@ public class StatusWatermarkValve {
 
 		this.lastOutputWatermark = Long.MIN_VALUE;
 		this.lastOutputStreamStatus = StreamStatus.ACTIVE;
+		this.progressHandler = new ProgressTrackingHandler(numInputChannels);
 	}
 
 	/**
@@ -96,20 +102,26 @@ public class StatusWatermarkValve {
 	public void inputWatermark(Watermark watermark, int channelIndex) {
 		// ignore the input watermark if its input channel, or all input channels are idle (i.e. overall the valve is idle).
 		if (lastOutputStreamStatus.isActive() && channelStatuses[channelIndex].streamStatus.isActive()) {
-			long watermarkMillis = watermark.getTimestamp();
-
-			// if the input watermark's value is less than the last received watermark for its input channel, ignore it also.
-			if (watermarkMillis > channelStatuses[channelIndex].watermark) {
-				channelStatuses[channelIndex].watermark = watermarkMillis;
-
-				// previously unaligned input channels are now aligned if its watermark has caught up
-				if (!channelStatuses[channelIndex].isWatermarkAligned && watermarkMillis >= lastOutputWatermark) {
-					channelStatuses[channelIndex].isWatermarkAligned = true;
-				}
-
-				// now, attempt to find a new min watermark across all aligned channels
-				findAndOutputNewMinWatermarkAcrossAlignedChannels();
+			Watermark next = progressHandler.getNextWatermark(watermark, channelIndex);
+			if(next != null){
+				lastOutputWatermark = next.getTimestamp();
+				outputHandler.handleWatermark(next);
 			}
+			
+//			long watermarkMillis = watermark.getTimestamp();
+//
+//			// if the input watermark's value is less than the last received watermark for its input channel, ignore it also.
+//			if (watermarkMillis > channelStatuses[channelIndex].watermark) {
+//				channelStatuses[channelIndex].watermark = watermarkMillis;
+//
+//				// previously unaligned input channels are now aligned if its watermark has caught up
+//				if (!channelStatuses[channelIndex].isWatermarkAligned && watermarkMillis >= lastOutputWatermark) {
+//					channelStatuses[channelIndex].isWatermarkAligned = true;
+//				}
+//
+//				// now, attempt to find a new min watermark across all aligned channels
+//				findAndOutputNewMinWatermarkAcrossAlignedChannels();
+//			}
 		}
 	}
 
@@ -122,52 +134,52 @@ public class StatusWatermarkValve {
 	 * @param channelIndex the index of the channel that the fed stream status belongs to (index starting from 0)
 	 */
 	public void inputStreamStatus(StreamStatus streamStatus, int channelIndex) {
-		// only account for stream status inputs that will result in a status change for the input channel
-		if (streamStatus.isIdle() && channelStatuses[channelIndex].streamStatus.isActive()) {
-			// handle active -> idle toggle for the input channel
-			channelStatuses[channelIndex].streamStatus = StreamStatus.IDLE;
-
-			// the channel is now idle, therefore not aligned
-			channelStatuses[channelIndex].isWatermarkAligned = false;
-
-			// if all input channels of the valve are now idle, we need to output an idle stream
-			// status from the valve (this also marks the valve as idle)
-			if (!InputChannelStatus.hasActiveChannels(channelStatuses)) {
-
-				// now that all input channels are idle and no channels will continue to advance its watermark,
-				// we should "flush" all watermarks across all channels; effectively, this means emitting
-				// the max watermark across all channels as the new watermark. Also, since we already try to advance
-				// the min watermark as channels individually become IDLE, here we only need to perform the flush
-				// if the watermark of the last active channel that just became idle is the current min watermark.
-				if (channelStatuses[channelIndex].watermark == lastOutputWatermark) {
-					findAndOutputMaxWatermarkAcrossAllChannels();
-				}
-
-				lastOutputStreamStatus = StreamStatus.IDLE;
-				outputHandler.handleStreamStatus(lastOutputStreamStatus);
-			} else if (channelStatuses[channelIndex].watermark == lastOutputWatermark) {
-				// if the watermark of the channel that just became idle equals the last output
-				// watermark (the previous overall min watermark), we may be able to find a new
-				// min watermark from the remaining aligned channels
-				findAndOutputNewMinWatermarkAcrossAlignedChannels();
-			}
-		} else if (streamStatus.isActive() && channelStatuses[channelIndex].streamStatus.isIdle()) {
-			// handle idle -> active toggle for the input channel
-			channelStatuses[channelIndex].streamStatus = StreamStatus.ACTIVE;
-
-			// if the last watermark of the input channel, before it was marked idle, is still larger than
-			// the overall last output watermark of the valve, then we can set the channel to be aligned already.
-			if (channelStatuses[channelIndex].watermark >= lastOutputWatermark) {
-				channelStatuses[channelIndex].isWatermarkAligned = true;
-			}
-
-			// if the valve was previously marked to be idle, mark it as active and output an active stream
-			// status because at least one of the input channels is now active
-			if (lastOutputStreamStatus.isIdle()) {
-				lastOutputStreamStatus = StreamStatus.ACTIVE;
-				outputHandler.handleStreamStatus(lastOutputStreamStatus);
-			}
-		}
+//		// only account for stream status inputs that will result in a status change for the input channel
+//		if (streamStatus.isIdle() && channelStatuses[channelIndex].streamStatus.isActive()) {
+//			// handle active -> idle toggle for the input channel
+//			channelStatuses[channelIndex].streamStatus = StreamStatus.IDLE;
+//
+//			// the channel is now idle, therefore not aligned
+//			channelStatuses[channelIndex].isWatermarkAligned = false;
+//
+//			// if all input channels of the valve are now idle, we need to output an idle stream
+//			// status from the valve (this also marks the valve as idle)
+//			if (!InputChannelStatus.hasActiveChannels(channelStatuses)) {
+//
+//				// now that all input channels are idle and no channels will continue to advance its watermark,
+//				// we should "flush" all watermarks across all channels; effectively, this means emitting
+//				// the max watermark across all channels as the new watermark. Also, since we already try to advance
+//				// the min watermark as channels individually become IDLE, here we only need to perform the flush
+//				// if the watermark of the last active channel that just became idle is the current min watermark.
+//				if (channelStatuses[channelIndex].watermark == lastOutputWatermark) {
+//					findAndOutputMaxWatermarkAcrossAllChannels();
+//				}
+//
+//				lastOutputStreamStatus = StreamStatus.IDLE;
+//				outputHandler.handleStreamStatus(lastOutputStreamStatus);
+//			} else if (channelStatuses[channelIndex].watermark == lastOutputWatermark) {
+//				// if the watermark of the channel that just became idle equals the last output
+//				// watermark (the previous overall min watermark), we may be able to find a new
+//				// min watermark from the remaining aligned channels
+//				findAndOutputNewMinWatermarkAcrossAlignedChannels();
+//			}
+//		} else if (streamStatus.isActive() && channelStatuses[channelIndex].streamStatus.isIdle()) {
+//			// handle idle -> active toggle for the input channel
+//			channelStatuses[channelIndex].streamStatus = StreamStatus.ACTIVE;
+//
+//			// if the last watermark of the input channel, before it was marked idle, is still larger than
+//			// the overall last output watermark of the valve, then we can set the channel to be aligned already.
+//			if (channelStatuses[channelIndex].watermark >= lastOutputWatermark) {
+//				channelStatuses[channelIndex].isWatermarkAligned = true;
+//			}
+//
+//			// if the valve was previously marked to be idle, mark it as active and output an active stream
+//			// status because at least one of the input channels is now active
+//			if (lastOutputStreamStatus.isIdle()) {
+//				lastOutputStreamStatus = StreamStatus.ACTIVE;
+//				outputHandler.handleStreamStatus(lastOutputStreamStatus);
+//			}
+//		}
 	}
 
 	private void findAndOutputNewMinWatermarkAcrossAlignedChannels() {

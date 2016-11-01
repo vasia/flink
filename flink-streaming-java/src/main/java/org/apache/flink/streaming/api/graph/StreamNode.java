@@ -27,6 +27,8 @@ import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.operators.StreamOperator;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
+import org.apache.flink.util.Preconditions;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -73,14 +75,19 @@ public class StreamNode implements Serializable {
 
 	private String transformationUID;
 	private String userHash;
-
+	
+	private StreamScope scope;
+	
+	private StreamIterationTermination iterationTermination;
+	
 	public StreamNode(StreamExecutionEnvironment env,
 		Integer id,
 		String slotSharingGroup,
 		StreamOperator<?> operator,
 		String operatorName,
 		List<OutputSelector<?>> outputSelector,
-		Class<? extends AbstractInvokable> jobVertexClass) {
+		Class<? extends AbstractInvokable> jobVertexClass,
+		StreamScope scope) {
 		this.env = env;
 		this.id = id;
 		this.operatorName = operatorName;
@@ -88,6 +95,7 @@ public class StreamNode implements Serializable {
 		this.outputSelectors = outputSelector;
 		this.jobVertexClass = jobVertexClass;
 		this.slotSharingGroup = slotSharingGroup;
+		this.scope = scope;
 	}
 
 	public void addInEdge(StreamEdge inEdge) {
@@ -106,12 +114,28 @@ public class StreamNode implements Serializable {
 		}
 	}
 
+	public StreamIterationTermination getIterationTermination() {
+		return iterationTermination;
+	}
+
+	public void setIterationTermination(StreamIterationTermination iterationTermination) {
+		this.iterationTermination = iterationTermination;
+	}
+
 	public List<StreamEdge> getOutEdges() {
 		return outEdges;
 	}
 
 	public List<StreamEdge> getInEdges() {
 		return inEdges;
+	}
+
+	public StreamScope getScope() {
+		return scope;
+	}
+
+	public void setScope(StreamScope scope) {
+		this.scope = scope;
 	}
 
 	public List<Integer> getOutEdgeIndices() {

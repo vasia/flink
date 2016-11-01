@@ -75,6 +75,8 @@ import org.apache.flink.runtime.metrics.groups.JobManagerMetricGroup
 import org.apache.flink.runtime.metrics.util.MetricUtils
 import org.apache.flink.runtime.metrics.{MetricRegistryConfiguration, MetricRegistryImpl, MetricRegistry => FlinkMetricRegistry}
 import org.apache.flink.runtime.process.ProcessReaper
+import org.apache.flink.runtime.progress.ProgressMetricsLogger
+import org.apache.flink.runtime.progress.messages.ProgressMetricsReport
 import org.apache.flink.runtime.query.KvStateMessage.{LookupKvStateLocation, NotifyKvStateRegistered, NotifyKvStateUnregistered}
 import org.apache.flink.runtime.query.{KvStateMessage, UnknownKvStateLocation}
 import org.apache.flink.runtime.security.{SecurityConfiguration, SecurityUtils}
@@ -164,6 +166,8 @@ class JobManager(
   var currentResourceManagerConnectionId: Long = 0
 
   val taskManagerMap = mutable.Map[ActorRef, InstanceID]()
+
+  var progressMetricsTrackers = Map[JobID, ActorRef]()
 
   val triggerResourceManagerReconnectInterval = new FiniteDuration(
     flinkConfiguration.getLong(JobManagerOptions.RESOURCE_MANAGER_RECONNECT_INTERVAL),
@@ -1183,6 +1187,9 @@ class JobManager(
             Status.Failure(
               new FlinkException("No REST endpoint has been started for the JobManager.")))
         )
+
+    case ptracking : ProgressMetricsReport =>
+      progressMetricsTrackers(ptracking.jobId) ! ptracking
   }
 
   /**
@@ -1225,6 +1232,15 @@ class JobManager(
 
       log.info(s"Submitting job $jobId ($jobName)" + (if (isRecovery) " (Recovery)" else "") + ".")
 
+      if(jobGraph.getJobConfiguration.getBoolean("experimentMetricsEnabled", false)){
+        progressMetricsTrackers += (jobId -> context.actorOf(Props(new ProgressMetricsLogger(
+          jobGraph.getJobConfiguration.getInteger("numWindows",0),
+          jobGraph.getJobConfiguration.getInteger("parallelism",0),
+          jobGraph.getJobConfiguration.getLong("winSize",0),
+          jobGraph.getJobConfiguration.getString("metricsOutputDir", "out")
+        ))));
+      }
+      
       try {
         // Important: We need to make sure that the library registration is the first action,
         // because this makes sure that the uploaded jar files are removed in case of
@@ -1411,7 +1427,16 @@ class JobManager(
       }(context.dispatcher)
     }
   }
-
+  
+  private def cleanupJobActors(jobId:JobID): Unit = {
+    progressMetricsTrackers.get(jobId) match {
+      case Some(act) => 
+        act ! PoisonPill
+        progressMetricsTrackers -= jobId
+      case None => None
+    }
+  }
+  
   /**
    * Dedicated handler for checkpoint messages.
    *

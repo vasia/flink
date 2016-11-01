@@ -27,6 +27,8 @@ import org.apache.flink.api.common.typeutils.base.LongSerializer;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 
+import java.util.List;
+
 /**
  * A {@link Trigger} that continuously fires based on a given time interval as measured by
  * the clock of the machine on which the job is running.
@@ -48,7 +50,7 @@ public class ContinuousProcessingTimeTrigger<W extends Window> extends Trigger<O
 	}
 
 	@Override
-	public TriggerResult onElement(Object element, long timestamp, W window, TriggerContext ctx) throws Exception {
+	public TriggerResult onElement(Object element, List<Long> timeContext, long timestamp, W window, TriggerContext ctx) throws Exception {
 		ReducingState<Long> fireTimestamp = ctx.getPartitionedState(stateDesc);
 
 		timestamp = ctx.getCurrentProcessingTime();
@@ -66,7 +68,7 @@ public class ContinuousProcessingTimeTrigger<W extends Window> extends Trigger<O
 	}
 
 	@Override
-	public TriggerResult onEventTime(long time, W window, TriggerContext ctx) throws Exception {
+	public TriggerResult onEventTime(List<Long> timeContext, long time, W window, TriggerContext ctx) throws Exception {
 		return TriggerResult.CONTINUE;
 	}
 

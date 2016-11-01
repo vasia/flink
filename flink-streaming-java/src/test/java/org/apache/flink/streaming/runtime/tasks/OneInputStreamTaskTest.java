@@ -48,6 +48,7 @@ import org.apache.flink.runtime.state.TestTaskStateManager;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.graph.StreamEdge;
 import org.apache.flink.streaming.api.graph.StreamNode;
+import org.apache.flink.streaming.api.graph.StreamScope;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.StreamMap;
@@ -104,7 +105,7 @@ public class OneInputStreamTaskTest extends TestLogger {
 		testHarness.setupOutputForSingletonOperatorChain();
 
 		StreamConfig streamConfig = testHarness.getStreamConfig();
-		StreamMap<String, String> mapOperator = new StreamMap<String, String>(new TestOpenCloseMapFunction());
+		StreamMap<String, String> mapOperator = new StreamMapMock(new TestOpenCloseMapFunction());
 		streamConfig.setStreamOperator(mapOperator);
 		streamConfig.setOperatorID(new OperatorID());
 
@@ -148,7 +149,7 @@ public class OneInputStreamTaskTest extends TestLogger {
 		testHarness.setupOutputForSingletonOperatorChain();
 
 		StreamConfig streamConfig = testHarness.getStreamConfig();
-		StreamMap<String, String> mapOperator = new StreamMap<String, String>(new IdentityMap());
+		StreamMap<String, String> mapOperator = new StreamMapMock(new IdentityMap());
 		streamConfig.setStreamOperator(mapOperator);
 		streamConfig.setOperatorID(new OperatorID());
 
@@ -360,7 +361,7 @@ public class OneInputStreamTaskTest extends TestLogger {
 		testHarness.setupOutputForSingletonOperatorChain();
 
 		StreamConfig streamConfig = testHarness.getStreamConfig();
-		StreamMap<String, String> mapOperator = new StreamMap<String, String>(new IdentityMap());
+		StreamMap<String, String> mapOperator = new StreamMapMock(new IdentityMap());
 		streamConfig.setStreamOperator(mapOperator);
 		streamConfig.setOperatorID(new OperatorID());
 
@@ -423,7 +424,7 @@ public class OneInputStreamTaskTest extends TestLogger {
 		testHarness.setupOutputForSingletonOperatorChain();
 
 		StreamConfig streamConfig = testHarness.getStreamConfig();
-		StreamMap<String, String> mapOperator = new StreamMap<String, String>(new IdentityMap());
+		StreamMap<String, String> mapOperator = new StreamMapMock(new IdentityMap());
 		streamConfig.setStreamOperator(mapOperator);
 		streamConfig.setOperatorID(new OperatorID());
 
@@ -726,7 +727,8 @@ public class OneInputStreamTaskTest extends TestLogger {
 					null,
 					null,
 					null,
-					null
+					null,
+					new StreamScope()
 				),
 				new StreamNode(
 					null,
@@ -735,7 +737,8 @@ public class OneInputStreamTaskTest extends TestLogger {
 					null,
 					null,
 					null,
-					null
+					null,
+					new StreamScope()
 				),
 				0,
 				Collections.<String>emptyList(),
@@ -809,15 +812,30 @@ public class OneInputStreamTaskTest extends TestLogger {
 		public void processElement(StreamRecord<IN> element) throws Exception {
 
 		}
+
+		@Override
+		public int getContextLevel() {
+			return 0;
+		}
 	}
 
+	private static class StreamMapMock extends StreamMap<String,String> {
+		public StreamMapMock(MapFunction<String,String> mapper) {
+			super(mapper);
+		}
+
+		@Override
+		public int getContextLevel() {
+			return 0;
+		}
+	}
 
 	// This must only be used in one test, otherwise the static fields will be changed
 	// by several tests concurrently
 	private static class TestOpenCloseMapFunction extends RichMapFunction<String, String> {
 		private static final long serialVersionUID = 1L;
 
-		public static boolean openCalled = false;
+		public static boolean openCalled = false;   
 		public static boolean closeCalled = false;
 
 		@Override

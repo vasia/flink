@@ -117,7 +117,7 @@ public class Emitter<OUT> implements Runnable {
 			AsyncCollectionResult<OUT> streamRecordResult = asyncResult.asResultCollection();
 
 			if (streamRecordResult.hasTimestamp()) {
-				timestampedCollector.setAbsoluteTimestamp(streamRecordResult.getTimestamp());
+				timestampedCollector.setAbsoluteTimestamp(streamRecordResult.getTimeContext(), streamRecordResult.getTimestamp());
 			} else {
 				timestampedCollector.eraseTimestamp();
 			}

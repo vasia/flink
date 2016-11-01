@@ -28,6 +28,7 @@ import org.apache.flink.util.TestLogger;
 
 import org.junit.Test;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -100,17 +101,18 @@ public class CoProcessOperatorTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void processElement1(Integer value, Context ctx, Collector<String> out) throws Exception {
-			out.collect(value + "WM:" + ctx.timerService().currentWatermark() + " TS:" + ctx.timestamp());
+		public void processElement1(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
+			out.collect(value + "WM:" + ctx.timerService().currentWatermark(timeContext) + " TS:" + ctx.timestamp());
 		}
 
 		@Override
-		public void processElement2(String value, Context ctx, Collector<String> out) throws Exception {
-			out.collect(value + "WM:" + ctx.timerService().currentWatermark() + " TS:" + ctx.timestamp());
+		public void processElement2(String value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
+			out.collect(value + "WM:" + ctx.timerService().currentWatermark(timeContext) + " TS:" + ctx.timestamp());
 		}
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {
@@ -122,17 +124,18 @@ public class CoProcessOperatorTest extends TestLogger {
 		private static final long serialVersionUID = 1L;
 
 		@Override
-		public void processElement1(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement1(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect(value + "PT:" + ctx.timerService().currentProcessingTime() + " TS:" + ctx.timestamp());
 		}
 
 		@Override
-		public void processElement2(String value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement2(String value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect(value + "PT:" + ctx.timerService().currentProcessingTime() + " TS:" + ctx.timestamp());
 		}
 
 		@Override
 		public void onTimer(
+				List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {

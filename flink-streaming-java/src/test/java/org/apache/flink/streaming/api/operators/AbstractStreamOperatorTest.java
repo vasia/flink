@@ -52,6 +52,7 @@ import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.RunnableFuture;
@@ -706,7 +707,7 @@ public class AbstractStreamOperatorTest {
 					getPartitionedState(stateDescriptor).clear();
 					break;
 				case "SET_EVENT_TIME_TIMER":
-					timerService.registerEventTimeTimer(VoidNamespace.INSTANCE, Long.parseLong(command[1]));
+					timerService.registerEventTimeTimer(VoidNamespace.INSTANCE, new LinkedList<Long>(), Long.parseLong(command[1]));
 					break;
 				case "SET_PROC_TIME_TIMER":
 					timerService.registerProcessingTimeTimer(VoidNamespace.INSTANCE, Long.parseLong(command[1]));

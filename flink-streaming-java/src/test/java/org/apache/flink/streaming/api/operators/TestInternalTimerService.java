@@ -66,7 +66,7 @@ public class TestInternalTimerService<K, N> implements InternalTimerService<N> {
 	}
 
 	@Override
-	public long currentWatermark() {
+	public long currentWatermark(List<Long> timeContext) {
 		return currentWatermark;
 	}
 
@@ -81,7 +81,7 @@ public class TestInternalTimerService<K, N> implements InternalTimerService<N> {
 	}
 
 	@Override
-	public void registerEventTimeTimer(N namespace, long time) {
+	public void registerEventTimeTimer(N namespace, List<Long> timeContext, long time) {
 		@SuppressWarnings("unchecked")
 		Timer<K, N> timer = new Timer<>(time, (K) keyContext.getCurrentKey(), namespace);
 		if (watermarkTimers.add(timer)) {
@@ -100,7 +100,7 @@ public class TestInternalTimerService<K, N> implements InternalTimerService<N> {
 	}
 
 	@Override
-	public void deleteEventTimeTimer(N namespace, long time) {
+	public void deleteEventTimeTimer(N namespace, List<Long> timeContext,long time) {
 		@SuppressWarnings("unchecked")
 		Timer<K, N> timer = new Timer<>(time, (K) keyContext.getCurrentKey(), namespace);
 		if (watermarkTimers.remove(timer)) {

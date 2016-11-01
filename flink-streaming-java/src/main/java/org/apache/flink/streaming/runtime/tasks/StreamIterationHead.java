@@ -22,8 +22,10 @@ import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.io.BlockingQueueBroker;
+import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.io.RecordWriterOutput;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.progress.StreamIterationTermination;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,16 +44,19 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 	private static final Logger LOG = LoggerFactory.getLogger(StreamIterationHead.class);
 
 	private volatile boolean running = true;
+//	private StreamIterationTermination termination = new StructuredIterationTermination(20);
+	
+	private StreamIterationTermination termination;
 
 	public StreamIterationHead(Environment env) {
 		super(env);
 	}
 
 	// ------------------------------------------------------------------------
-
+	
 	@Override
 	protected void run() throws Exception {
-
+		termination = getConfiguration().getTerminationFunction(Thread.currentThread().getContextClassLoader());
 		final String iterationId = getConfiguration().getIterationId();
 		if (iterationId == null || iterationId.length() == 0) {
 			throw new Exception("Missing iteration ID in the task configuration");
@@ -63,7 +68,7 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 		final long iterationWaitTime = getConfiguration().getIterationWaitTime();
 		final boolean shouldWait = iterationWaitTime > 0;
 
-		final BlockingQueue<StreamRecord<OUT>> dataChannel = new ArrayBlockingQueue<StreamRecord<OUT>>(1);
+		final BlockingQueue<StreamElement> dataChannel = new ArrayBlockingQueue<>(100000);
 
 		// offer the queue for the tail
 		BlockingQueueBroker.INSTANCE.handIn(brokerID, dataChannel);
@@ -74,21 +79,32 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 			@SuppressWarnings("unchecked")
 			RecordWriterOutput<OUT>[] outputs = (RecordWriterOutput<OUT>[]) getStreamOutputs();
 
-			// If timestamps are enabled we make sure to remove cyclic watermark dependencies
-			if (isSerializingTimestamps()) {
-				for (RecordWriterOutput<OUT> output : outputs) {
-					output.emitWatermark(new Watermark(Long.MAX_VALUE));
-				}
-			}
-
 			while (running) {
-				StreamRecord<OUT> nextRecord = shouldWait ?
+				StreamElement nextElement = shouldWait ?
 					dataChannel.poll(iterationWaitTime, TimeUnit.MILLISECONDS) :
 					dataChannel.take();
 
-				if (nextRecord != null) {
-					for (RecordWriterOutput<OUT> output : outputs) {
-						output.collect(nextRecord);
+				if (nextElement != null) {
+					if(nextElement.isWatermark()) {
+						Watermark mark = nextElement.asWatermark();
+
+						termination.observeWatermark(mark);
+						if(termination.terminate(mark.getContext())) {
+							mark.setIterationDone(true);
+						}
+
+						mark.forwardTimestamp();
+						LOG.info("@HEAD: " + mark);
+						for (RecordWriterOutput<OUT> output : outputs) {
+							output.emitWatermark(mark);
+						}
+					} else if(nextElement.isRecord()) {
+						StreamRecord record = nextElement.asRecord();
+						termination.observeRecord(record);
+						record.forwardTimestamp();
+						for (RecordWriterOutput<OUT> output : outputs) {
+							output.collect(record);
+						}
 					}
 				}
 				else {
@@ -138,4 +154,5 @@ public class StreamIterationHead<OUT> extends OneInputStreamTask<OUT, OUT> {
 	public static String createBrokerIdString(JobID jid, String iterationID, int subtaskIndex) {
 		return jid + "-" + iterationID + "-" + subtaskIndex;
 	}
+
 }

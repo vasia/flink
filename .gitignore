@@ -22,7 +22,6 @@ flink-runtime-web/web-dashboard/assets/fonts/
 flink-runtime-web/web-dashboard/node_modules/
 flink-runtime-web/web-dashboard/bower_components/
 atlassian-ide-plugin.xml
-out/
 /docs/api
 /docs/content
 /docs/.bundle

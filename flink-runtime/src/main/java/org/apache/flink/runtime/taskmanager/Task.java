@@ -18,6 +18,7 @@
 
 package org.apache.flink.runtime.taskmanager;
 
+import akka.actor.ActorRef;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
@@ -61,6 +62,7 @@ import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobgraph.tasks.AbstractInvokable;
 import org.apache.flink.runtime.jobgraph.tasks.InputSplitProvider;
 import org.apache.flink.runtime.jobgraph.tasks.StoppableTask;
+import org.apache.flink.runtime.jobmanager.JobManager;
 import org.apache.flink.runtime.jobmanager.PartitionProducerDisposedException;
 import org.apache.flink.runtime.memory.MemoryManager;
 import org.apache.flink.runtime.metrics.groups.TaskMetricGroup;
@@ -404,12 +406,17 @@ public class Task implements Runnable, TaskActions, CheckpointListener {
 
 		// finally, create the executing thread, but do not start it
 		executingThread = new Thread(TASK_THREADS_GROUP, this, taskNameWithSubtask);
+
+		if (this.metrics != null && this.metrics.getIOMetricGroup() != null) {
+			// add metrics for buffers
+			this.metrics.getIOMetricGroup().initializeBufferMetrics(this);
+		}
 	}
 
 	// ------------------------------------------------------------------------
 	//  Accessors
 	// ------------------------------------------------------------------------
-
+	
 	public JobID getJobID() {
 		return jobId;
 	}

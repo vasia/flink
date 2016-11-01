@@ -21,6 +21,7 @@ package org.apache.flink.streaming.api.operators.async.queue;
 import org.apache.flink.annotation.Internal;
 
 import java.util.Collection;
+import java.util.List;
 
 /**
  * {@link AsyncResult} sub class for asynchronous result collections.
@@ -33,6 +34,7 @@ public interface AsyncCollectionResult<T> extends AsyncResult {
 	boolean hasTimestamp();
 
 	long getTimestamp();
+	List<Long> getTimeContext();
 
 	/**
 	 * Return the asynchronous result collection.

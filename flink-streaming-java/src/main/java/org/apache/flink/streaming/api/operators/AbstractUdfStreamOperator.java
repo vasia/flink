@@ -52,17 +52,23 @@ public abstract class AbstractUdfStreamOperator<OUT, F extends Function>
 		implements OutputTypeConfigurable<OUT> {
 
 	private static final long serialVersionUID = 1L;
+	public static final int DEFAULT_SCOPE = 0;
 
 
-	/** The user function. */
+	/** the user function */
 	protected final F userFunction;
 
 	/** Flag to prevent duplicate function.close() calls in close() and dispose(). */
 	private transient boolean functionsClosed = false;
-
+	
 	public AbstractUdfStreamOperator(F userFunction) {
+		this(userFunction, DEFAULT_SCOPE);
+	}
+
+	public AbstractUdfStreamOperator(F userFunction, int scopeLevel) {
 		this.userFunction = requireNonNull(userFunction);
 		checkUdfCheckpointingPreconditions();
+		this.scopeLevel = scopeLevel;
 	}
 
 	/**

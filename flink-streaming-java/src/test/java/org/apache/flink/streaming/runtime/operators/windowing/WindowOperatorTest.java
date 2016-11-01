@@ -79,9 +79,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.Serializable;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1486,7 +1484,8 @@ public class WindowOperatorTest extends TestLogger {
 		ConcurrentLinkedQueue<Object> expected = new ConcurrentLinkedQueue<>();
 
 		long timestamp = Long.MAX_VALUE - 1750;
-		Collection<TimeWindow> windows = windowAssigner.assignWindows(new Tuple2<>("key2", 1), timestamp, new WindowAssigner.WindowAssignerContext() {
+		List<Long> timeContext = new LinkedList<>();
+		Collection<TimeWindow> windows = windowAssigner.assignWindows(new Tuple2<>("key2", 1), timeContext, timestamp, new WindowAssigner.WindowAssignerContext() {
 			@Override
 			public long getCurrentProcessingTime() {
 				return operator.windowAssignerContext.getCurrentProcessingTime();
@@ -2731,7 +2730,7 @@ public class WindowOperatorTest extends TestLogger {
 
 		@Override
 		@SuppressWarnings("unchecked")
-		public Collection<TimeWindow> assignWindows(Object element, long timestamp, WindowAssignerContext ctx) {
+		public Collection<TimeWindow> assignWindows(Object element, List<Long> timeContext, long timestamp, WindowAssignerContext ctx) {
 			if (element instanceof Tuple2) {
 				Tuple2<String, Integer> t2 = (Tuple2<String, Integer>) element;
 				if (t2.f1 == 33) {
@@ -2757,18 +2756,18 @@ public class WindowOperatorTest extends TestLogger {
 		}
 
 		@Override
-		public TriggerResult onElement(Object element, long timestamp, TimeWindow window, TriggerContext ctx) throws Exception {
-			if (window.maxTimestamp() <= ctx.getCurrentWatermark()) {
+		public TriggerResult onElement(Object element, List<Long> timeContext, long timestamp, TimeWindow window, TriggerContext ctx) throws Exception {
+			if (window.maxTimestamp() <= ctx.getCurrentWatermark(timeContext)) {
 				// if the watermark is already past the window fire immediately
 				return TriggerResult.FIRE;
 			} else {
-				ctx.registerEventTimeTimer(window.maxTimestamp());
+				ctx.registerEventTimeTimer(timeContext, window.maxTimestamp());
 				return TriggerResult.CONTINUE;
 			}
 		}
 
 		@Override
-		public TriggerResult onEventTime(long time, TimeWindow window, TriggerContext ctx) {
+		public TriggerResult onEventTime(List<Long> timeContext, long time, TimeWindow window, TriggerContext ctx) {
 			return time == window.maxTimestamp() || time == window.maxTimestamp() + cleanupTime ?
 				TriggerResult.FIRE_AND_PURGE :
 				TriggerResult.CONTINUE;
@@ -2781,7 +2780,7 @@ public class WindowOperatorTest extends TestLogger {
 
 		@Override
 		public void clear(TimeWindow window, TriggerContext ctx) throws Exception {
-			ctx.deleteEventTimeTimer(window.maxTimestamp());
+			ctx.deleteEventTimeTimer(window.getTimeContext(), window.maxTimestamp());
 		}
 
 		@Override
@@ -2791,7 +2790,7 @@ public class WindowOperatorTest extends TestLogger {
 
 		@Override
 		public void onMerge(TimeWindow window, OnMergeContext ctx) {
-			ctx.registerEventTimeTimer(window.maxTimestamp());
+			ctx.registerEventTimeTimer(window.getTimeContext(), window.maxTimestamp());
 		}
 
 		@Override

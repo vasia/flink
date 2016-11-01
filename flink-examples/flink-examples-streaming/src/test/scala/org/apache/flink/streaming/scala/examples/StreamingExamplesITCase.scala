@@ -28,7 +28,6 @@ import org.apache.flink.streaming.examples.iteration.util.IterateExampleData
 import org.apache.flink.streaming.examples.ml.util.IncrementalLearningSkeletonData
 import org.apache.flink.streaming.examples.twitter.util.TwitterExampleData
 import org.apache.flink.streaming.examples.windowing.util.SessionWindowingData
-import org.apache.flink.streaming.scala.examples.iteration.IterateExample
 import org.apache.flink.streaming.scala.examples.join.WindowJoin
 import org.apache.flink.streaming.scala.examples.join.WindowJoin.{Grade, Salary}
 import org.apache.flink.streaming.scala.examples.ml.IncrementalLearningSkeleton
@@ -44,20 +43,7 @@ import org.junit.Test
  * Integration test for streaming programs in Scala examples.
  */
 class StreamingExamplesITCase extends AbstractTestBase {
-
-  @Test
-  def testIterateExample(): Unit = {
-    val inputPath = createTempFile("fibonacciInput.txt", IterateExampleData.INPUT_PAIRS)
-    val resultPath = getTempDirPath("result")
-
-    // the example is inherently non-deterministic. The iteration timeout of 5000 ms
-    // is frequently not enough to make the test run stable on CI infrastructure
-    // with very small containers, so we cannot do a validation here
-    IterateExample.main(Array(
-      "--input", inputPath,
-      "--output", resultPath
-    ))
-  }
+  
 
   @Test
   def testWindowJoin(): Unit = {

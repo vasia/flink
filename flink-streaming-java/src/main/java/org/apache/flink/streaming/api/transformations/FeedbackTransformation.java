@@ -61,7 +61,7 @@ public class FeedbackTransformation<T> extends StreamTransformation<T> {
 	 *                          the operation will close and not receive any more feedback elements.
 	 */
 	public FeedbackTransformation(StreamTransformation<T> input, Long waitTime) {
-		super("Feedback", input.getOutputType(), input.getParallelism());
+		super("Feedback", input.getOutputType(), input.getParallelism(), input.getScope());
 		this.input = input;
 		this.waitTime = waitTime;
 		this.feedbackEdges = Lists.newArrayList();
@@ -122,5 +122,6 @@ public class FeedbackTransformation<T> extends StreamTransformation<T> {
 		result.addAll(input.getTransitivePredecessors());
 		return result;
 	}
+	
 }
 

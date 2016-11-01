@@ -25,6 +25,8 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.util.OutputTag;
 
+import java.util.List;
+
 import static org.apache.flink.util.Preconditions.checkState;
 
 /**
@@ -60,10 +62,15 @@ public class ProcessOperator<IN, OUT>
 	}
 
 	@Override
+	public void sendMetrics(long windowEnd, List<Long> context) {
+		
+	}
+
+	@Override
 	public void processElement(StreamRecord<IN> element) throws Exception {
 		collector.setTimestamp(element);
 		context.element = element;
-		userFunction.processElement(element.getValue(), context, collector);
+		userFunction.processElement(element.getValue(), context, element.getContext(), collector);
 		context.element = null;
 	}
 
@@ -108,7 +115,7 @@ public class ProcessOperator<IN, OUT>
 		}
 
 		@Override
-		public long currentWatermark() {
+		public long currentWatermark(List<Long> timeContext) {
 			return currentWatermark;
 		}
 
@@ -118,7 +125,7 @@ public class ProcessOperator<IN, OUT>
 		}
 
 		@Override
-		public void registerEventTimeTimer(long time) {
+		public void registerEventTimeTimer(List<Long> timeContext, long time) {
 			throw new UnsupportedOperationException("Setting timers is only supported on a KeyedStream.");
 		}
 

@@ -22,6 +22,9 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.Collector;
 
+import java.io.Serializable;
+import java.util.List;
+
 /**
  * Wrapper around an {@link Output} for user functions that expect a {@link Collector}.
  * Before giving the {@link TimestampedCollector} to a user function you must set
@@ -32,8 +35,8 @@ import org.apache.flink.util.Collector;
  * @param <T> The type of the elements that can be emitted.
  */
 @Internal
-public class TimestampedCollector<T> implements Collector<T> {
-
+public class TimestampedCollector<T> implements Collector<T>, Serializable {
+	
 	private final Output<StreamRecord<T>> output;
 
 	private final StreamRecord<T> reuse;
@@ -54,13 +57,15 @@ public class TimestampedCollector<T> implements Collector<T> {
 	public void setTimestamp(StreamRecord<?> timestampBase) {
 		if (timestampBase.hasTimestamp()) {
 			reuse.setTimestamp(timestampBase.getTimestamp());
+			reuse.setContext(timestampBase.getContext());
 		} else {
 			reuse.eraseTimestamp();
 		}
 	}
 
-	public void setAbsoluteTimestamp(long timestamp) {
+	public void setAbsoluteTimestamp(List<Long> timeContext, long timestamp) {
 		reuse.setTimestamp(timestamp);
+		reuse.setContext(timeContext);
 	}
 
 	public void eraseTimestamp() {

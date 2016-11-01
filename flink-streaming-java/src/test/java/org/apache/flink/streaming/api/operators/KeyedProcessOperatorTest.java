@@ -38,6 +38,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.junit.Assert.assertEquals;
@@ -353,7 +354,7 @@ public class KeyedProcessOperatorTest extends TestLogger {
 	private static class NullOutputTagEmittingProcessFunction extends KeyedProcessFunction<Integer, Integer, String> {
 
 		@Override
-		public void processElement(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement(Integer value, Context ctx, List<Long> timeContext,Collector<String> out) throws Exception {
 			ctx.output(null, value);
 		}
 	}
@@ -364,7 +365,7 @@ public class KeyedProcessOperatorTest extends TestLogger {
 		static final OutputTag<Long> LONG_OUTPUT_TAG = new OutputTag<Long>("long-out") {};
 
 		@Override
-		public void processElement(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("IN:" + value);
 
 			ctx.output(INTEGER_OUTPUT_TAG, value);
@@ -392,9 +393,9 @@ public class KeyedProcessOperatorTest extends TestLogger {
 		}
 
 		@Override
-		public void processElement(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			if (expectedTimeDomain.equals(TimeDomain.EVENT_TIME)) {
-				out.collect(value + "TIME:" + ctx.timerService().currentWatermark() + " TS:" + ctx.timestamp());
+				out.collect(value + "TIME:" + ctx.timerService().currentWatermark(timeContext) + " TS:" + ctx.timestamp());
 			} else {
 				out.collect(value + "TIME:" + ctx.timerService().currentProcessingTime() + " TS:" + ctx.timestamp());
 			}
@@ -402,6 +403,7 @@ public class KeyedProcessOperatorTest extends TestLogger {
 
 		@Override
 		public void onTimer(
+			List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {
@@ -422,10 +424,10 @@ public class KeyedProcessOperatorTest extends TestLogger {
 		}
 
 		@Override
-		public void processElement(Integer value, Context ctx, Collector<Integer> out) throws Exception {
+		public void processElement(Integer value, Context ctx, List<Long> timeContext, Collector<Integer> out) throws Exception {
 			out.collect(value);
 			if (expectedTimeDomain.equals(TimeDomain.EVENT_TIME)) {
-				ctx.timerService().registerEventTimeTimer(ctx.timerService().currentWatermark() + 5);
+				ctx.timerService().registerEventTimeTimer(timeContext,ctx.timerService().currentWatermark(timeContext) + 5);
 			} else {
 				ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime() + 5);
 			}
@@ -433,6 +435,7 @@ public class KeyedProcessOperatorTest extends TestLogger {
 
 		@Override
 		public void onTimer(
+			List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<Integer> out) throws Exception {
@@ -456,11 +459,11 @@ public class KeyedProcessOperatorTest extends TestLogger {
 		}
 
 		@Override
-		public void processElement(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			out.collect("INPUT:" + value);
 			getRuntimeContext().getState(state).update(value);
 			if (expectedTimeDomain.equals(TimeDomain.EVENT_TIME)) {
-				ctx.timerService().registerEventTimeTimer(ctx.timerService().currentWatermark() + 5);
+				ctx.timerService().registerEventTimeTimer(timeContext,ctx.timerService().currentWatermark(timeContext) + 5);
 			} else {
 				ctx.timerService().registerProcessingTimeTimer(ctx.timerService().currentProcessingTime() + 5);
 			}
@@ -468,6 +471,7 @@ public class KeyedProcessOperatorTest extends TestLogger {
 
 		@Override
 		public void onTimer(
+			List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {
@@ -487,13 +491,14 @@ public class KeyedProcessOperatorTest extends TestLogger {
 		}
 
 		@Override
-		public void processElement(Integer value, Context ctx, Collector<String> out) throws Exception {
+		public void processElement(Integer value, Context ctx, List<Long> timeContext, Collector<String> out) throws Exception {
 			ctx.timerService().registerProcessingTimeTimer(5);
-			ctx.timerService().registerEventTimeTimer(6);
+			ctx.timerService().registerEventTimeTimer(timeContext,6);
 		}
 
 		@Override
 		public void onTimer(
+			List<Long> timeContext,
 				long timestamp,
 				OnTimerContext ctx,
 				Collector<String> out) throws Exception {

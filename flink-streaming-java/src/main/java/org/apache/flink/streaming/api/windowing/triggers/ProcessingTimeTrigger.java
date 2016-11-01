@@ -21,6 +21,8 @@ package org.apache.flink.streaming.api.windowing.triggers;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 
+import java.util.List;
+
 /**
  * A {@link Trigger} that fires once the current system time passes the end of the window
  * to which a pane belongs.
@@ -32,13 +34,13 @@ public class ProcessingTimeTrigger extends Trigger<Object, TimeWindow> {
 	private ProcessingTimeTrigger() {}
 
 	@Override
-	public TriggerResult onElement(Object element, long timestamp, TimeWindow window, TriggerContext ctx) {
+	public TriggerResult onElement(Object element, List<Long> timeContext, long timestamp, TimeWindow window, TriggerContext ctx) {
 		ctx.registerProcessingTimeTimer(window.maxTimestamp());
 		return TriggerResult.CONTINUE;
 	}
 
 	@Override
-	public TriggerResult onEventTime(long time, TimeWindow window, TriggerContext ctx) throws Exception {
+	public TriggerResult onEventTime(List<Long> timeContext, long time, TimeWindow window, TriggerContext ctx) throws Exception {
 		return TriggerResult.CONTINUE;
 	}
 

@@ -25,6 +25,7 @@ import org.apache.flink.streaming.api.windowing.windows.Window;
 import org.apache.flink.streaming.runtime.operators.windowing.TimestampedValue;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * An {@code Evictor} can remove elements from a pane before/after the evaluation of WindowFunction
@@ -88,7 +89,7 @@ public interface Evictor<T, W extends Window> extends Serializable {
 		/**
 		 * Returns the current watermark time.
 		 */
-		long getCurrentWatermark();
+		long getCurrentWatermark(List<Long> timeContext);
 	}
 }
 

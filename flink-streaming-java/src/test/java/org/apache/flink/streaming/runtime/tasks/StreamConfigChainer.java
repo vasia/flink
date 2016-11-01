@@ -24,6 +24,7 @@ import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.graph.StreamEdge;
 import org.apache.flink.streaming.api.graph.StreamNode;
+import org.apache.flink.streaming.api.graph.StreamScope;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.runtime.partitioner.BroadcastPartitioner;
@@ -76,8 +77,8 @@ public class StreamConfigChainer {
 
 		tailConfig.setChainedOutputs(Collections.singletonList(
 			new StreamEdge(
-				new StreamNode(null, tailConfig.getChainIndex(), null, null, null, null, null),
-				new StreamNode(null, chainIndex, null, null, null, null, null),
+				new StreamNode(null, tailConfig.getChainIndex(), null, null, null, null, null, new StreamScope()),
+				new StreamNode(null, chainIndex, null, null, null, null, null, new StreamScope()),
 				0,
 				Collections.<String>emptyList(),
 				null,
@@ -99,8 +100,8 @@ public class StreamConfigChainer {
 		List<StreamEdge> outEdgesInOrder = new LinkedList<StreamEdge>();
 		outEdgesInOrder.add(
 			new StreamEdge(
-				new StreamNode(null, chainIndex, null, null, null, null, null),
-				new StreamNode(null, chainIndex , null, null, null, null, null),
+				new StreamNode(null, chainIndex, null, null, null, null, null, new StreamScope()),
+				new StreamNode(null, chainIndex , null, null, null, null, null, new StreamScope()),
 				0,
 				Collections.<String>emptyList(),
 				new BroadcastPartitioner<Object>(),

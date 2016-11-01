@@ -17,6 +17,7 @@
 
 package org.apache.flink.streaming.api;
 
+import java.util.ArrayList;
 import org.apache.flink.api.common.InvalidProgramException;
 import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
@@ -48,6 +49,8 @@ import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.datastream.SplitStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.LoopFunction;
+import org.apache.flink.streaming.api.functions.TimelyFlatMapFunction;
 import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -60,6 +63,7 @@ import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
 import org.apache.flink.streaming.api.graph.StreamEdge;
 import org.apache.flink.streaming.api.graph.StreamGraph;
+import org.apache.flink.streaming.api.graph.StreamNode;
 import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator;
 import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
 import org.apache.flink.streaming.api.operators.LegacyKeyedProcessOperator;
@@ -78,6 +82,8 @@ import org.apache.flink.streaming.runtime.partitioner.KeyGroupStreamPartitioner;
 import org.apache.flink.streaming.runtime.partitioner.RebalancePartitioner;
 import org.apache.flink.streaming.runtime.partitioner.ShufflePartitioner;
 import org.apache.flink.streaming.runtime.partitioner.StreamPartitioner;
+import org.apache.flink.streaming.util.NoOpIntMap;
+import org.apache.flink.streaming.util.keys.KeySelectorUtil;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.TestLogger;
 
@@ -464,6 +470,106 @@ public class DataStreamTest extends TestLogger {
 		assertTrue(isKeyed(connectedPartition4));
 		assertTrue(isKeyed(connectedPartition5));
 	}
+	
+	@Test
+	public void testNestedScopeViolations(){
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+		
+		final DataStream<Integer> source = env.fromElements(1,2,3);
+		
+		 final DataStream<Integer>[] loop1Op = new DataStream[1];
+
+		source.iterate(new LoopFunction<Integer, Integer>() {
+			@Override
+			public Tuple2<DataStream<Integer>, DataStream<Integer>> loop(DataStream<Integer> inputStream) {
+				try {
+					inputStream.map(new NoOpIntMap()).union(source);
+					fail();
+				}catch(UnsupportedOperationException ex){
+				}
+				catch(Throwable ex){
+					fail("Excepted UnsupportedOperationException when applying union over streams of different scope.");
+				}
+				try {
+					inputStream.map(new NoOpIntMap()).coGroup(source);
+					fail();
+				}catch(UnsupportedOperationException ex){
+				}catch(Throwable ex){
+					fail("Excepted UnsupportedOperationException when applying cogroup over streams of different scope.");
+				}
+				try {
+					inputStream.map(new NoOpIntMap()).join(source).where(new KeySelector<Integer, Integer>() {
+						@Override
+						public Integer getKey(Integer val) throws Exception {
+							return val;
+						}
+					});
+					fail();
+				}catch(UnsupportedOperationException ex){
+				}catch(Throwable ex){
+					fail("Excepted UnsupportedOperationException when applying joins over streams of different scope.");
+				}
+				DataStream x =  inputStream.map(new NoOpIntMap());        
+				loop1Op[0] = x;
+				return new Tuple2<>(inputStream, inputStream);
+			}
+		});
+		try {
+			source.union(loop1Op[0]);
+			fail();
+		}catch(UnsupportedOperationException ex){
+		}catch(Throwable ex){
+			fail("Excepted UnsupportedOperationException when applying binary operations from any external scope.");
+		}
+		
+	}
+
+	@Test
+	public void testNestedScopeLevels(){
+		StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+
+		List<Integer> level0Ops = new ArrayList<>();
+		final List<Integer> level1Ops = new ArrayList<>();
+		final List<Integer> level2Ops = new ArrayList<>();
+
+		DataStream<Integer> source = env.fromElements(1,2,3);
+		level0Ops.add(source.getId());
+		DataStream map1 = source.map(new NoOpIntMap());
+		level0Ops.add(map1.getId());
+		DataStream loop = map1.iterate(new LoopFunction<Integer, Integer>() {
+			@Override
+			public Tuple2<DataStream<Integer>, DataStream<Integer>> loop(DataStream<Integer> input) {
+				DataStream<Integer> map2 = input.map(new NoOpIntMap());
+				level1Ops.add(map2.getId());
+				DataStream<Integer> nestedLoop = map2.iterate(new LoopFunction<Integer, Integer>() {
+					@Override
+					public Tuple2<DataStream<Integer>, DataStream<Integer>> loop(DataStream<Integer> input2) {
+						DataStream<Integer> map3 = input2.map(new NoOpIntMap());
+						level2Ops.add(map3.getId());
+						return new Tuple2<>(map3, map3);
+					}
+				});
+				return new Tuple2<>(nestedLoop, nestedLoop);
+			}
+		});
+		DataStream<Integer> map4 = loop.map(new NoOpIntMap());
+		level0Ops.add(map4.getId());
+		map4.addSink(new DiscardingSink<Integer>());
+
+		StreamGraph graph = env.getStreamGraph();
+		for(int nodeId : level0Ops){
+			StreamNode node = graph.getStreamNode(nodeId);
+			assertEquals(0, node.getScope().getLevel());
+		}
+		for(int nodeId : level1Ops){
+			StreamNode node = graph.getStreamNode(nodeId);
+			assertEquals(1, node.getScope().getLevel());
+		}
+		for(int nodeId : level2Ops){
+			StreamNode node = graph.getStreamNode(nodeId);
+			assertEquals(2, node.getScope().getLevel());
+		}
+	}
 
 	/**
 	 * Tests whether parallelism gets set.
@@ -706,12 +812,14 @@ public class DataStreamTest extends TestLogger {
 			public void processElement(
 					Long value,
 					Context ctx,
+					List<Long> timeContext,
 					Collector<Integer> out) throws Exception {
 				// Do nothing
 			}
 
 			@Override
 			public void onTimer(
+					List<Long> timeContext,
 					long timestamp,
 					OnTimerContext ctx,
 					Collector<Integer> out) throws Exception {
@@ -741,12 +849,12 @@ public class DataStreamTest extends TestLogger {
 			private static final long serialVersionUID = 1L;
 
 			@Override
-			public void processElement(Long value, Context ctx, Collector<Integer> out) throws Exception {
+			public void processElement(Long value, Context ctx, List<Long> timeContext, Collector<Integer> out) throws Exception {
 				// Do nothing
 			}
 
 			@Override
-			public void onTimer(long timestamp, OnTimerContext ctx, Collector<Integer> out) throws Exception {
+			public void onTimer(List<Long> timeContext, long timestamp, OnTimerContext ctx, Collector<Integer> out) throws Exception {
 				// Do nothing
 			}
 		};
@@ -770,23 +878,14 @@ public class DataStreamTest extends TestLogger {
 		DataStreamSource<Long> src = env.generateSequence(0, 0);
 
 		ProcessFunction<Long, Integer> processFunction = new ProcessFunction<Long, Integer>() {
+			@Override
+			public void processElement(Long value, Context ctx, List<Long> timeContext, Collector<Integer> out) throws Exception {
+				
+			}
+
 			private static final long serialVersionUID = 1L;
 
-			@Override
-			public void processElement(
-					Long value,
-					Context ctx,
-					Collector<Integer> out) throws Exception {
-				// Do nothing
-			}
 
-			@Override
-			public void onTimer(
-					long timestamp,
-					OnTimerContext ctx,
-					Collector<Integer> out) throws Exception {
-				// Do nothing
-			}
 		};
 
 		DataStream<Integer> processed = src

@@ -20,6 +20,8 @@ package org.apache.flink.streaming.api;
 
 import org.apache.flink.annotation.PublicEvolving;
 
+import java.util.List;
+
 /**
  * Interface for working with time and timers.
  */
@@ -30,7 +32,7 @@ public interface TimerService {
 	long currentProcessingTime();
 
 	/** Returns the current event-time watermark. */
-	long currentWatermark();
+	long currentWatermark(List<Long> timeContext);
 
 	/**
 	 * Registers a timer to be fired when processing time passes the given time.
@@ -50,5 +52,5 @@ public interface TimerService {
 	 * {@link org.apache.flink.streaming.api.datastream.KeyedStream} then that context
 	 * will also be active when you receive the timer notification.
 	 */
-	void registerEventTimeTimer(long time);
+	void registerEventTimeTimer(List<Long> timeContext, long time);
 }

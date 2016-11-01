@@ -43,6 +43,7 @@ import org.apache.flink.shaded.guava18.com.google.common.collect.FluentIterable;
 import org.apache.flink.shaded.guava18.com.google.common.collect.Iterables;
 
 import java.util.Collection;
+import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -101,7 +102,9 @@ public class EvictingWindowOperator<K, IN, OUT, W extends Window>
 	@Override
 	public void processElement(StreamRecord<IN> element) throws Exception {
 		final Collection<W> elementWindows = windowAssigner.assignWindows(
-				element.getValue(), element.getTimestamp(), windowAssignerContext);
+				element.getValue(),
+				element.getContext(),element.getTimestamp(),
+				windowAssignerContext);
 
 		//if element is handled by none of assigned elementWindows
 		boolean isSkippedElement = true;
@@ -123,10 +126,10 @@ public class EvictingWindowOperator<K, IN, OUT, W extends Window>
 									Collection<W> mergedWindows, W stateWindowResult,
 									Collection<W> mergedStateWindows) throws Exception {
 
-								if ((windowAssigner.isEventTime() && mergeResult.maxTimestamp() + allowedLateness <= internalTimerService.currentWatermark())) {
+								if ((windowAssigner.isEventTime() && mergeResult.maxTimestamp() + allowedLateness <= internalTimerService.currentWatermark(window.getTimeContext()))) {
 									throw new UnsupportedOperationException("The end timestamp of an " +
 											"event-time window cannot become earlier than the current watermark " +
-											"by merging. Current watermark: " + internalTimerService.currentWatermark() +
+											"by merging. Current watermark: " + internalTimerService.currentWatermark(window.getTimeContext()) +
 											" window: " + mergeResult);
 								} else if (!windowAssigner.isEventTime() && mergeResult.maxTimestamp() <= internalTimerService.currentProcessingTime()) {
 									throw new UnsupportedOperationException("The end timestamp of a " +
@@ -266,7 +269,7 @@ public class EvictingWindowOperator<K, IN, OUT, W extends Window>
 		Iterable<StreamRecord<IN>> contents = evictingWindowState.get();
 
 		if (contents != null) {
-			TriggerResult triggerResult = triggerContext.onEventTime(timer.getTimestamp());
+			TriggerResult triggerResult = triggerContext.onEventTime(timer.getTimeContext(), timer.getTimestamp());
 			if (triggerResult.isFire()) {
 				emitWindowContents(triggerContext.window, contents, evictingWindowState);
 			}
@@ -332,7 +335,7 @@ public class EvictingWindowOperator<K, IN, OUT, W extends Window>
 	}
 
 	private void emitWindowContents(W window, Iterable<StreamRecord<IN>> contents, ListState<StreamRecord<IN>> windowState) throws Exception {
-		timestampedCollector.setAbsoluteTimestamp(window.maxTimestamp());
+		timestampedCollector.setAbsoluteTimestamp(window.getTimeContext(), window.maxTimestamp());
 
 		// Work around type system restrictions...
 		FluentIterable<TimestampedValue<IN>> recordsWithTimestamp = FluentIterable
@@ -401,8 +404,8 @@ public class EvictingWindowOperator<K, IN, OUT, W extends Window>
 		}
 
 		@Override
-		public long getCurrentWatermark() {
-			return internalTimerService.currentWatermark();
+		public long getCurrentWatermark(List<Long> timeContext) {
+			return internalTimerService.currentWatermark(timeContext);
 		}
 
 		@Override

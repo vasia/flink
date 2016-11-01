@@ -105,7 +105,7 @@ public class InternalTimeServiceManager<K, N> {
 
 	public void advanceWatermark(Watermark watermark) throws Exception {
 		for (HeapInternalTimerService<?, ?> service : timerServices.values()) {
-			service.advanceWatermark(watermark.getTimestamp());
+			service.advanceWatermark(watermark.getContext(), watermark.getTimestamp());
 		}
 	}
 

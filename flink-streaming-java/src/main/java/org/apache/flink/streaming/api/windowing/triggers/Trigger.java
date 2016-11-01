@@ -29,6 +29,7 @@ import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * A {@code Trigger} determines when a pane of a window should be evaluated to emit the
@@ -65,7 +66,7 @@ public abstract class Trigger<T, W extends Window> implements Serializable {
 	 * @param window The window to which the element is being added.
 	 * @param ctx A context object that can be used to register timer callbacks.
 	 */
-	public abstract TriggerResult onElement(T element, long timestamp, W window, TriggerContext ctx) throws Exception;
+	public abstract TriggerResult onElement(T element, List<Long> timeContext, long timestamp, W window, TriggerContext ctx) throws Exception;
 
 	/**
 	 * Called when a processing-time timer that was set using the trigger context fires.
@@ -93,7 +94,7 @@ public abstract class Trigger<T, W extends Window> implements Serializable {
 	 * @param window The window for which the timer fired.
 	 * @param ctx A context object that can be used to register timer callbacks.
 	 */
-	public abstract TriggerResult onEventTime(long time, W window, TriggerContext ctx) throws Exception;
+	public abstract TriggerResult onEventTime(List<Long> timeContext, long time, W window, TriggerContext ctx) throws Exception;
 
 	/**
 	 * Returns true if this trigger supports merging of trigger state and can therefore
@@ -153,8 +154,8 @@ public abstract class Trigger<T, W extends Window> implements Serializable {
 		/**
 		 * Returns the current watermark time.
 		 */
-		long getCurrentWatermark();
-
+		long getCurrentWatermark(List<Long> timeContext);
+	
 		/**
 		 * Register a system time callback. When the current system time passes the specified
 		 * time {@link Trigger#onProcessingTime(long, Window, TriggerContext)} is called with the time specified here.
@@ -170,8 +171,8 @@ public abstract class Trigger<T, W extends Window> implements Serializable {
 		 * @param time The watermark at which to invoke {@link Trigger#onEventTime(long, Window, TriggerContext)}
 		 * @see org.apache.flink.streaming.api.watermark.Watermark
 		 */
-		void registerEventTimeTimer(long time);
-
+		void registerEventTimeTimer(List<Long> timeContext, long time);
+	
 		/**
 		 * Delete the processing time trigger for the given time.
 		 */
@@ -180,8 +181,8 @@ public abstract class Trigger<T, W extends Window> implements Serializable {
 		/**
 		 * Delete the event-time trigger for the given time.
 		 */
-		void deleteEventTimeTimer(long time);
-
+		void deleteEventTimeTimer(List<Long> timerContext, long time);
+	
 		/**
 		 * Retrieves a {@link State} object that can be used to interact with
 		 * fault-tolerant state that is scoped to the window and key of the current

@@ -25,6 +25,7 @@ import org.apache.flink.api.common.operators.ResourceSpec;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.MissingTypeInfo;
 import org.apache.flink.streaming.api.graph.StreamGraph;
+import org.apache.flink.streaming.api.graph.StreamScope;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.util.Preconditions;
@@ -149,6 +150,8 @@ public abstract class StreamTransformation<T> {
 	protected long bufferTimeout = -1;
 
 	private String slotSharingGroup;
+	
+	protected final StreamScope scope;
 
 	/**
 	 * Creates a new {@code StreamTransformation} with the given name, output type and parallelism.
@@ -157,12 +160,13 @@ public abstract class StreamTransformation<T> {
 	 * @param outputType The output type of this {@code StreamTransformation}
 	 * @param parallelism The parallelism of this {@code StreamTransformation}
 	 */
-	public StreamTransformation(String name, TypeInformation<T> outputType, int parallelism) {
+	public StreamTransformation(String name, TypeInformation<T> outputType, int parallelism, StreamScope scope) {
 		this.id = getNewNodeId();
 		this.name = Preconditions.checkNotNull(name);
 		this.outputType = outputType;
 		this.parallelism = parallelism;
 		this.slotSharingGroup = null;
+		this.scope = scope;
 	}
 
 	/**
@@ -466,5 +470,9 @@ public abstract class StreamTransformation<T> {
 		result = 31 * result + parallelism;
 		result = 31 * result + (int) (bufferTimeout ^ (bufferTimeout >>> 32));
 		return result;
+	}
+
+	public final StreamScope getScope(){
+		return scope;
 	}
 }
