@@ -1597,7 +1597,7 @@ public class WindowedStream<T, K, W extends Window> {
 					out.collect(rec);
 				}
 			}
-		}).name("Pre-Window").setParallelism(getInput().getParallelism()).keyBy(getInput().getKeySelector());
+		}).name("Pre-Window").keyBy(getInput().getKeySelector());
 		
 		//?
 

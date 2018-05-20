@@ -23,7 +23,7 @@ import java.io.Serializable;
 import java.util.*;
 
 @Internal
-public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extends Window, W2 extends Window>
+public class TwoWindowTerminateOperator<K, IN1, IN2, ACC2, R, S, W2 extends Window>
 	extends AbstractStreamOperator<Either<R,S>>
 	implements TwoInputStreamOperator<IN1, IN2, Either<R,S>>, Serializable {
 
@@ -39,7 +39,6 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 
 	TimestampedCollector<Either<R,S>> collector;
 
-	//TODO implement this properly in a ProcessFunction and managed state
 	Map<List<Long>, Map<K, List<IN1>>> entryBuffer;
 
 	// MY METRICS
@@ -86,7 +85,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	}
 
 	public void processElement1(StreamRecord<IN1> element) throws Exception {
-		logger.info(getRuntimeContext().getIndexOfThisSubtask() +":: TWOWIN Received e from IN - "+ element);
+		logger.info(getRuntimeContext().getNumberOfParallelSubtasks()+" - "+getRuntimeContext().getMaxNumberOfParallelSubtasks()+" ::: "+getRuntimeContext().getIndexOfThisSubtask() +":: TWOWIN Received e from IN - "+ element);
 		activeIterations.add(element.getContext());
 
 		if(!entryBuffer.containsKey(element.getContext())){

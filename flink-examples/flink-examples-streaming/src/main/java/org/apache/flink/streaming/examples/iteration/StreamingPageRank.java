@@ -50,6 +50,7 @@ public class StreamingPageRank {
 	 */
 	public StreamingPageRank(int numWindows, long windSize, int parallelism, String inputDir, String outputDir) throws Exception {
 		env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+		env.setParallelism(parallelism);
 		
 		DataStream<Tuple2<Long, List<Long>>> inputStream = env.addSource(new PageRankSampleSrc());
 		WindowedStream<Tuple2<Long, List<Long>>, Long, TimeWindow> winStream = inputStream
@@ -60,11 +61,11 @@ public class StreamingPageRank {
 				}
 			})
 			.timeWindow(Time.milliseconds(1000));
-		
+
 			winStream.iterateSyncFor(4,
 				new MyWindowLoopFunction(),
 				new MyFeedbackBuilder(),
-				new TupleTypeInfo<Tuple2<Long, Double>>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO))
+				new TupleTypeInfo<>(BasicTypeInfo.LONG_TYPE_INFO, BasicTypeInfo.DOUBLE_TYPE_INFO))
 			.print();
 		env.getConfig().setExperimentConstants(numWindows, windSize, outputDir);
 	}
