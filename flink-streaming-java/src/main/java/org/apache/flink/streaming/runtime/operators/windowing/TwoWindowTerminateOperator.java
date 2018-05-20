@@ -1,9 +1,8 @@
 package org.apache.flink.streaming.runtime.operators.windowing;
 
-import akka.actor.ActorRef;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.runtime.progress.messages.ProgressMetricsReport;
+import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.functions.windowing.LoopContext;
 import org.apache.flink.streaming.api.functions.windowing.WindowLoopFunction;
 import org.apache.flink.streaming.api.graph.StreamConfig;
@@ -30,6 +29,8 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 
 	public final static Logger logger = LoggerFactory.getLogger(TwoWindowTerminateOperator.class);
 	private final KeySelector<IN1, K> entryKeying;
+	private final KeySelector<IN2, K> feedbackKeying;
+	
 	WindowOperator<K, IN2, ACC2, Either<R,S>, W2> winOp2;
 	WindowLoopFunction loopFunction;
 	
@@ -45,8 +46,9 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	private Map<List<Long>, Long> lastWinStartPerContext = new HashMap<>();
 	private Map<List<Long>, Long> lastLocalEndPerContext = new HashMap<>();
 
-	public TwoWindowTerminateOperator(KeySelector<IN1,K> entryKeySelector, WindowOperator winOp2, WindowLoopFunction loopFunction) {
+	public TwoWindowTerminateOperator(KeySelector<IN1,K> entryKeySelector, KeySelector<IN2,K> feedbackKeySelector, WindowOperator winOp2, WindowLoopFunction loopFunction) {
 		this.entryKeying = entryKeySelector;
+		this.feedbackKeying = feedbackKeySelector;
 		this.winOp2 = winOp2;
 		this.loopFunction = loopFunction;
 	}
@@ -66,11 +68,9 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	@Override
 	public final void open() throws Exception {
 		collector = new TimestampedCollector<>(output);
-
 		winOp2.getOperatorConfig().setStateKeySerializer(config.getStateKeySerializer(containingTask.getUserCodeClassLoader()));
-
 		super.open();
-		winOp2.open("window-timers");
+		winOp2.open();
 	}
 
 	@Override
@@ -103,6 +103,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 	
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
 		logger.info(getRuntimeContext().getIndexOfThisSubtask() +":: TWOWIN Received e from FEEDBACK - "+ element);
+		winOp2.setCurrentKey(feedbackKeying.getKey(element.getValue()));
 		if(activeIterations.contains(element.getContext())) {
 			winOp2.processElement(element);
 		}
@@ -135,6 +136,12 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC1, ACC2, R, S, W1 extend
 			winOp2.processWatermark(mark);
 		}
 		lastLocalEndPerContext.put(mark.getContext(), System.currentTimeMillis());
+	}
+
+	@Override
+	public void initializeState(StateInitializationContext context) throws Exception {
+		super.initializeState(context);
+		winOp2.initializeState();
 	}
 
 	public void processLatencyMarker1(LatencyMarker latencyMarker) throws Exception {}

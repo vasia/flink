@@ -179,6 +179,9 @@ public class StreamInputProcessor<IN> {
 				if (result.isFullRecord()) {
 					StreamElement recordOrMark = ProgressTrackingUtils.adaptTimestamp(deserializationDelegate.getInstance(), streamOperator.getContextLevel());
 
+					if(recordOrMark == null) {
+						continue;
+					}
 					if (recordOrMark.isWatermark()) {
 						// handle watermark
 						statusWatermarkValve.inputWatermark(recordOrMark.asWatermark(), currentChannel);
