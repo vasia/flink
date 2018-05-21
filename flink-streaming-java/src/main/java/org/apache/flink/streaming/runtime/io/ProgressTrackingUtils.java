@@ -51,7 +51,7 @@ public class ProgressTrackingUtils implements Serializable {
 		if (element.isWatermark()) {
 			return element.asWatermark().getContext().size();
 		}
-		return element.asRecord().getContext().size();
+		return element.asRecord().getProgressContext().size();
 	}
 
 	static void addTimestamp(StreamElement element) {

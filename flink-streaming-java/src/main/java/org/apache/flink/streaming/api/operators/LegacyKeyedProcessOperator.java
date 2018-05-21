@@ -85,7 +85,7 @@ public class LegacyKeyedProcessOperator<K, IN, OUT>
 	public void processElement(StreamRecord<IN> element) throws Exception {
 		collector.setTimestamp(element);
 		context.element = element;
-		userFunction.processElement(element.getValue(), context, element.getContext(), collector);
+		userFunction.processElement(element.getValue(), context, element.getProgressContext(), collector);
 		context.element = null;
 	}
 

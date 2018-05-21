@@ -103,7 +103,7 @@ public class EvictingWindowOperator<K, IN, OUT, W extends Window>
 	public void processElement(StreamRecord<IN> element) throws Exception {
 		final Collection<W> elementWindows = windowAssigner.assignWindows(
 				element.getValue(),
-				element.getContext(),element.getTimestamp(),
+				element.getProgressContext(),element.getTimestamp(),
 				windowAssignerContext);
 
 		//if element is handled by none of assigned elementWindows

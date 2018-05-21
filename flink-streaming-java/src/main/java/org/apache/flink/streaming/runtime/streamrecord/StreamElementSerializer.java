@@ -185,8 +185,8 @@ public final class StreamElementSerializer<T> extends TypeSerializer<StreamEleme
 			if (record.hasTimestamp()) {
 				target.write(TAG_REC_WITH_TIMESTAMP);
 				target.writeLong(record.getTimestamp());
-				target.writeInt(record.getContext().size());
-				for(long contextElement : record.getContext()) {
+				target.writeInt(record.getProgressContext().size());
+				for(long contextElement : record.getProgressContext()) {
 					target.writeLong(contextElement);
 				}
 			} else {

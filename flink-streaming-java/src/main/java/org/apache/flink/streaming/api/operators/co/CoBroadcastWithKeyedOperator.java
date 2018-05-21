@@ -206,7 +206,7 @@ public class CoBroadcastWithKeyedOperator<KS, IN1, IN2, OUT>
 
 		@Override
 		public long currentWatermark() {
-			return timerService.currentWatermark(element.getContext());
+			return timerService.currentWatermark(element.getProgressContext());
 		}
 
 		@Override
@@ -266,7 +266,7 @@ public class CoBroadcastWithKeyedOperator<KS, IN1, IN2, OUT>
 
 		@Override
 		public long currentWatermark() {
-			return timerService.currentWatermark(element.getContext());
+			return timerService.currentWatermark(element.getProgressContext());
 		}
 
 		@Override

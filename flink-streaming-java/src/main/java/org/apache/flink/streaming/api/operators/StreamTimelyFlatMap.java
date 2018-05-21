@@ -74,6 +74,6 @@ public class StreamTimelyFlatMap<K, IN, OUT>
 	@Override
 	public void processElement(StreamRecord<IN> element) throws Exception {
 		collector.setTimestamp(element);
-		userFunction.flatMap(element.getValue(), timerService, element.getContext(), collector);
+		userFunction.flatMap(element.getValue(), timerService, element.getProgressContext(), collector);
 	}
 }

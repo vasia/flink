@@ -29,7 +29,7 @@ import org.apache.commons.lang3.text.StrBuilder;
 /**
  * Driver for {@link org.apache.flink.graph.library.linkanalysis.PageRank}.
  */
-public class PageRank<K, VV, EV>
+public class 	PageRank<K, VV, EV>
 extends DriverBase<K, VV, EV> {
 
 	private static final int DEFAULT_ITERATIONS = 10;

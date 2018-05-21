@@ -23,15 +23,17 @@ import java.io.Serializable;
 import java.util.*;
 
 @Internal
-public class TwoWindowTerminateOperator<K, IN1, IN2, ACC2, R, S, W2 extends Window>
+public class WindowMultiPassOperator<K, IN1, IN2, ACC2, R, S, W2 extends Window>
 	extends AbstractStreamOperator<Either<R,S>>
 	implements TwoInputStreamOperator<IN1, IN2, Either<R,S>>, Serializable {
 
-	public final static Logger logger = LoggerFactory.getLogger(TwoWindowTerminateOperator.class);
+	public final static Logger logger = LoggerFactory.getLogger(WindowMultiPassOperator.class);
 	private final KeySelector<IN1, K> entryKeying;
 	private final KeySelector<IN2, K> feedbackKeying;
 	
 	WindowOperator<K, IN2, ACC2, Either<R,S>, W2> winOp2;
+	
+	//UDF
 	WindowLoopFunction loopFunction;
 	
 	Set<List<Long>> activeIterations = new HashSet<>();
@@ -45,7 +47,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC2, R, S, W2 extends Wind
 	private Map<List<Long>, Long> lastWinStartPerContext = new HashMap<>();
 	private Map<List<Long>, Long> lastLocalEndPerContext = new HashMap<>();
 
-	public TwoWindowTerminateOperator(KeySelector<IN1,K> entryKeySelector, KeySelector<IN2,K> feedbackKeySelector, WindowOperator winOp2, WindowLoopFunction loopFunction) {
+	public WindowMultiPassOperator(KeySelector<IN1,K> entryKeySelector, KeySelector<IN2,K> feedbackKeySelector, WindowOperator winOp2, WindowLoopFunction loopFunction) {
 		this.entryKeying = entryKeySelector;
 		this.feedbackKeying = feedbackKeySelector;
 		this.winOp2 = winOp2;
@@ -86,13 +88,13 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC2, R, S, W2 extends Wind
 
 	public void processElement1(StreamRecord<IN1> element) throws Exception {
 		logger.info(getRuntimeContext().getNumberOfParallelSubtasks()+" - "+getRuntimeContext().getMaxNumberOfParallelSubtasks()+" ::: "+getRuntimeContext().getIndexOfThisSubtask() +":: TWOWIN Received e from IN - "+ element);
-		activeIterations.add(element.getContext());
+		activeIterations.add(element.getProgressContext());
 
-		if(!entryBuffer.containsKey(element.getContext())){
-			entryBuffer.put(element.getContext(), new HashMap<K, List<IN1>>());
+		if(!entryBuffer.containsKey(element.getProgressContext())){
+			entryBuffer.put(element.getProgressContext(), new HashMap<K, List<IN1>>());
 		}
 		
-		Map<K, List<IN1>> tmp = entryBuffer.get(element.getContext());
+		Map<K, List<IN1>> tmp = entryBuffer.get(element.getProgressContext());
 		K key = entryKeying.getKey(element.getValue());
 		if(!tmp.containsKey(key)){
 			tmp.put(key, new ArrayList<IN1>());
@@ -103,7 +105,7 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC2, R, S, W2 extends Wind
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
 		logger.info(getRuntimeContext().getIndexOfThisSubtask() +":: TWOWIN Received e from FEEDBACK - "+ element);
 		winOp2.setCurrentKey(feedbackKeying.getKey(element.getValue()));
-		if(activeIterations.contains(element.getContext())) {
+		if(activeIterations.contains(element.getProgressContext())) {
 			winOp2.processElement(element);
 		}
 	}
@@ -117,8 +119,8 @@ public class TwoWindowTerminateOperator<K, IN1, IN2, ACC2, R, S, W2 extends Wind
 				loopFunction.entry(new LoopContext(mark.getContext(), 0, entry.getKey()), entry.getValue(), collector);
 			}
 			entryBuffer.remove(mark.getContext()); //entry is done for that context
-			output.emitWatermark(mark);
 		}
+		output.emitWatermark(mark);
 		lastLocalEndPerContext.put(mark.getContext(), System.currentTimeMillis());
 	}
 	

@@ -47,7 +47,6 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.runtime.state.VoidNamespaceSerializer;
-import org.apache.flink.streaming.api.datastream.IterativeWindowStream;
 import org.apache.flink.runtime.state.internal.InternalAppendingState;
 import org.apache.flink.runtime.state.internal.InternalListState;
 import org.apache.flink.runtime.state.internal.InternalMergingState;
@@ -300,7 +299,7 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 	@Override
 	public void processElement(StreamRecord<IN> element) throws Exception {
 		final Collection<W> elementWindows = windowAssigner.assignWindows(
-			element.getValue(), element.getContext(), element.getTimestamp(), windowAssignerContext);
+			element.getValue(), element.getProgressContext(), element.getTimestamp(), windowAssignerContext);
 
 		//if element is handled by none of assigned elementWindows
 		boolean isSkippedElement = true;
@@ -321,10 +320,10 @@ public class WindowOperator<K, IN, ACC, OUT, W extends Window>
 							Collection<W> mergedWindows, W stateWindowResult,
 							Collection<W> mergedStateWindows) throws Exception {
 
-						if ((windowAssigner.isEventTime() && mergeResult.maxTimestamp() + allowedLateness <= internalTimerService.currentWatermark(element.getContext()))) {
+						if ((windowAssigner.isEventTime() && mergeResult.maxTimestamp() + allowedLateness <= internalTimerService.currentWatermark(element.getProgressContext()))) {
 							throw new UnsupportedOperationException("The end timestamp of an " +
 									"event-time window cannot become earlier than the current watermark " +
-									"by merging. Current watermark: " + internalTimerService.currentWatermark(element.getContext()) +
+									"by merging. Current watermark: " + internalTimerService.currentWatermark(element.getProgressContext()) +
 									" window: " + mergeResult);
 						} else if (!windowAssigner.isEventTime() && mergeResult.maxTimestamp() <= internalTimerService.currentProcessingTime()) {
 							throw new UnsupportedOperationException("The end timestamp of a " +
@@ -594,7 +593,7 @@ if (contents != null) {		TriggerResult triggerResult = triggerContext.onEventTim
 	 */
 	protected boolean isElementLate(StreamRecord<IN> element){
 		return (windowAssigner.isEventTime()) &&
-			(element.getTimestamp() + allowedLateness <= internalTimerService.currentWatermark(element.getContext()));
+			(element.getTimestamp() + allowedLateness <= internalTimerService.currentWatermark(element.getProgressContext()));
 	}
 
 	/**
@@ -935,7 +934,7 @@ if (contents != null) {		TriggerResult triggerResult = triggerContext.onEventTim
 			logger.info("WINOP : Received element "+element);
 			return trigger.onElement(
 				element.getValue(),
-				element.getContext(),
+				element.getProgressContext(),
 				element.getTimestamp(),
 				window, this);
 		}

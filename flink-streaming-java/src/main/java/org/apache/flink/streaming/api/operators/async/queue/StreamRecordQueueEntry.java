@@ -51,7 +51,7 @@ public class StreamRecordQueueEntry<OUT> extends StreamElementQueueEntry<Collect
 
 		hasTimestamp = streamRecord.hasTimestamp();
 		timestamp = streamRecord.getTimestamp();
-		timeContext = streamRecord.getContext();
+		timeContext = streamRecord.getProgressContext();
 
 		resultFuture = new CompletableFuture<>();
 	}

@@ -261,7 +261,7 @@ public interface KeyedStateStore {
 	 *     public void open(Configuration cfg) {
 	 *         state = getRuntimeContext().getMapState(
 	 *                 new MapStateDescriptor<>("sum", MyType.class, Long.class));
-	 *     }
+	 *     }                                                                                                                                                                                                                                                                                                                     le
 	 *
 	 *     public Tuple2<MyType, Long> map(MyType value) {
 	 *         return new Tuple2<>(value, state.get(value));

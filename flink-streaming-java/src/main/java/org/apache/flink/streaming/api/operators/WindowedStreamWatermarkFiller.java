@@ -24,10 +24,10 @@ public class WindowedStreamWatermarkFiller<IN>
 
 	@Override
 	public void processElement(StreamRecord<IN> element) throws Exception {
-		if(element.getContext().get(0) > 0) {
+		if(element.getProgressContext().get(0) > 0) {
 			System.out.println(element);
 		}
-		Map<Long, List<StreamRecord<IN>>> elements = getElements(element.getContext());
+		Map<Long, List<StreamRecord<IN>>> elements = getElements(element.getProgressContext());
 
 		List<StreamRecord<IN>> elementsWithSameTimestamp = elements.get(element.getTimestamp());
 		if(elementsWithSameTimestamp == null) {
@@ -50,7 +50,7 @@ public class WindowedStreamWatermarkFiller<IN>
 				for(StreamRecord<IN> record : elements.get(i)) {
 					output.collect(record);
 				}
-				//System.out.println("Filler: " + new Watermark(watermark.getContext(), i, false, iterationOnly));
+				//System.out.println("Filler: " + new Watermark(watermark.getProgressContext(), i, false, iterationOnly));
 				output.emitWatermark(new Watermark(watermark.getContext(), i, false, iterationOnly));
 				elements.remove(i);
 			}
@@ -63,7 +63,7 @@ public class WindowedStreamWatermarkFiller<IN>
 				output.collect(record);
 			}
 			if(current.getKey() != watermark.getTimestamp()) {
-				output.emitWatermark(new Watermark(watermark.getContext(), current.getKey(), true));
+				output.emitWatermark(new Watermark(watermark.getProgressContext(), current.getKey(), true));
 			}
 			it.remove();
 		}*/

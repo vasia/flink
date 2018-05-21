@@ -1598,8 +1598,6 @@ public class WindowedStream<T, K, W extends Window> {
 				}
 			}
 		}).name("Pre-Window").keyBy(getInput().getKeySelector());
-		
-		//?
 
 		WindowedStream<T, K, W> scopedWindowStream = new WindowedStream<>(
 			new KeyedStream<>(new SingleOutputStreamOperator<>(preWindowedStream.getExecutionEnvironment(),

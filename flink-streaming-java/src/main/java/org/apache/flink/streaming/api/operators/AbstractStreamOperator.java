@@ -758,7 +758,7 @@ public abstract class AbstractStreamOperator<OUT>
 		String taskName = getRuntimeContext().getTaskName().length() < 10 ? getRuntimeContext().getTaskName() : getRuntimeContext().getTaskName().substring(0,10);
 		logger.info(taskName +" - "+getRuntimeContext().getIndexOfThisSubtask()+"  Received 1 - "+ mark);
 		
-		input1Watermark = mark.getTimestamp();
+		input1Watermark = mark.getTimestamp();              
 		long newMin = Math.min(input1Watermark, input2Watermark);
 		if (newMin > combinedWatermark) {
 			combinedWatermark = newMin;

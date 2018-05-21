@@ -168,7 +168,7 @@ public class StreamTwoInputProcessor<IN1, IN2> {
 		for (InputGate gate: inputGates1) {
 			numInputChannels1 += gate.getNumberOfInputChannels();
 		}
-
+		                                                                     
 		this.numInputChannels1 = numInputChannels1;
 		this.numInputChannels2 = inputGate.getNumberOfInputChannels() - numInputChannels1;
 

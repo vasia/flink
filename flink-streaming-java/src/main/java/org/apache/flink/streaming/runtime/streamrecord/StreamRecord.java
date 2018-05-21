@@ -112,7 +112,7 @@ public final class StreamRecord<T> extends StreamElement implements Serializable
 		}
 	}
 
-	public List<Long> getContext() {
+	public List<Long> getProgressContext() {
 		return context;
 	}
 

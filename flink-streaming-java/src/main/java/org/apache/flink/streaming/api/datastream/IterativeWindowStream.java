@@ -24,7 +24,7 @@ import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.api.windowing.windows.Window;
 import org.apache.flink.streaming.runtime.operators.windowing.EvictingWindowOperator;
-import org.apache.flink.streaming.runtime.operators.windowing.TwoWindowTerminateOperator;
+import org.apache.flink.streaming.runtime.operators.windowing.WindowMultiPassOperator;
 import org.apache.flink.streaming.runtime.operators.windowing.WindowOperator;
 import org.apache.flink.streaming.runtime.operators.windowing.functions.InternalIterableWindowFunction;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
@@ -142,7 +142,7 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 			getWindowOperator(windowedStream2, new WrappedWindowFunction2<F, Either<R, S>, K, TimeWindow>(coWinTerm), eitherTypeInfo);
 
 		String opName = "TwoWindowTerminate(" + stepDiscretizer.f0 + ")"; 
-		TwoWindowTerminateOperator combinedOperator = new TwoWindowTerminateOperator(windowedStream1.getInput().getKeySelector(),feedbackSelector, stepDiscretizer.f1, coWinTerm);
+		WindowMultiPassOperator combinedOperator = new WindowMultiPassOperator(windowedStream1.getInput().getKeySelector(),feedbackSelector, stepDiscretizer.f1, coWinTerm);
 		return new TwoInputTransformation<>(
 			windowedStream1.getInput().getTransformation(),
 			windowedStream2.getInput().getTransformation(),
