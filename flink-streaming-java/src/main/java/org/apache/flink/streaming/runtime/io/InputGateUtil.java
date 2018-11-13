@@ -18,12 +18,12 @@
 package org.apache.flink.streaming.runtime.io;
 
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
-import org.apache.flink.runtime.io.network.partition.consumer.UnionInputGate;
+import org.apache.flink.runtime.io.network.partition.consumer.*;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Utility for dealing with input gates. This will either just return
@@ -38,6 +38,26 @@ public class InputGateUtil {
 		gates.addAll(inputGates1);
 		gates.addAll(inputGates2);
 		return createInputGate(gates.toArray(new InputGate[gates.size()]));
+	}
+
+	/**
+	 * EXPERIMENTAL FEATURE
+	 * Priorities are implicit in incremental argument order (per collection group of input gates) 
+	 * @param inputGates1
+	 * @param inputGates2
+	 * @return
+	 */
+	public static InputGate createInputGatePrioritized(Collection<InputGate> inputGates1, Collection<InputGate> inputGates2) {
+		List<InputGate> gates = new ArrayList<>(inputGates1.size() + inputGates2.size());
+		List<PriorityInputGateWrapper> group1 = inputGates1.stream().map(ig -> 
+			new PriorityInputGateWrapper(0, (SingleInputGate) ig)).collect(Collectors.toList());
+		List<PriorityInputGateWrapper> group2 = inputGates2.stream().map(ig -> 
+			new PriorityInputGateWrapper(1, (SingleInputGate) ig)).collect(Collectors.toList());
+		
+		gates.addAll(group1); 
+		gates.addAll(group2);
+		
+		return new PrioritizedUnionInputGate(gates.toArray(new InputGate[gates.size()]));
 	}
 
 	public static InputGate createInputGate(InputGate[] inputGates) {

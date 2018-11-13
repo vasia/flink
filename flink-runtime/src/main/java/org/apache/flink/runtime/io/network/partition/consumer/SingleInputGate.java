@@ -182,6 +182,9 @@ public class SingleInputGate implements InputGate {
 
 	/** A timer to retrigger local partition requests. Only initialized if actually needed. */
 	private Timer retriggerLocalRequestTimer;
+	
+	/** Priority levels are used during buffer allocation and consumer polling */
+	private int priority = 0;
 
 	public SingleInputGate(
 		String owningTaskName,
@@ -252,6 +255,15 @@ public class SingleInputGate implements InputGate {
 		else {
 			throw new IllegalStateException("Input gate has not been initialized with buffers.");
 		}
+	}
+	
+	public void setPriority(int priorityLevel){
+		this.priority = priorityLevel;
+	}
+
+	@Override
+	public int getPriority() {
+		return priority;
 	}
 
 	public int getNumberOfQueuedBuffers() {
@@ -381,6 +393,26 @@ public class SingleInputGate implements InputGate {
 				}
 			}
 		}
+	}
+
+	public String getOwningTaskName() {
+		return owningTaskName;
+	}
+
+	public JobID getJobId() {
+		return jobId;
+	}
+
+	public int getConsumedSubpartitionIndex() {
+		return consumedSubpartitionIndex;
+	}
+
+	public TaskActions getTaskActions() {
+		return taskActions;
+	}
+
+	public boolean isCreditBased() {
+		return isCreditBased;
 	}
 
 	/**

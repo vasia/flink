@@ -649,7 +649,7 @@ public class SingleInputGateTest {
 				/**
 				 * {@link UnionInputGate#pollNextBufferOrEvent()} is unsupported at the moment.
 				 */
-				if (!(inputGate instanceof UnionInputGate)) {
+				if (!(inputGate instanceof UnionInputGate || inputGate instanceof PrioritizedUnionInputGate)) {
 					throw ex;
 				}
 			}

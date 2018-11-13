@@ -43,12 +43,12 @@ public class TestInputChannel {
 
 	private final InputChannel mock = Mockito.mock(InputChannel.class);
 
-	private final SingleInputGate inputGate;
+	private final InputGate inputGate;
 
 	// Abusing Mockito here... ;)
 	protected OngoingStubbing<Optional<BufferAndAvailability>> stubbing;
 
-	public TestInputChannel(SingleInputGate inputGate, int channelIndex) {
+	public TestInputChannel(InputGate inputGate, int channelIndex) {
 		checkArgument(channelIndex >= 0);
 		this.inputGate = checkNotNull(inputGate);
 
@@ -111,7 +111,7 @@ public class TestInputChannel {
 	 *
 	 * @return The created test input channels.
 	 */
-	public static TestInputChannel[] createInputChannels(SingleInputGate inputGate, int numberOfInputChannels) {
+	public static TestInputChannel[] createInputChannels(InputGate inputGate, int numberOfInputChannels) {
 		checkNotNull(inputGate);
 		checkArgument(numberOfInputChannels > 0);
 
@@ -120,7 +120,15 @@ public class TestInputChannel {
 		for (int i = 0; i < numberOfInputChannels; i++) {
 			mocks[i] = new TestInputChannel(inputGate, i);
 
-			inputGate.setInputChannel(new IntermediateResultPartitionID(), mocks[i].getInputChannel());
+			if(inputGate instanceof SingleInputGate){
+				((SingleInputGate) inputGate).setInputChannel(new IntermediateResultPartitionID(), mocks[i].getInputChannel());
+			}
+			else if(inputGate instanceof PriorityInputGateWrapper)
+			{
+				((SingleInputGate) ((PriorityInputGateWrapper) inputGate).getWrappedInputGate()).setInputChannel(new IntermediateResultPartitionID(), mocks[i].getInputChannel());
+			} else {
+				throw new IllegalArgumentException("Expected InputGate argument should be either SingleInputGate or PriorityInputGate - Got "+ inputGate.getClass() + " insteadk");
+			}
 		}
 
 		return mocks;

@@ -141,7 +141,7 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 		Tuple2<String, WindowOperator> stepDiscretizer =
 			getWindowOperator(windowedStream2, new WrappedWindowFunction2<F, Either<R, S>, K, TimeWindow>(coWinTerm), eitherTypeInfo);
 
-		String opName = "TwoWindowTerminate(" + stepDiscretizer.f0 + ")"; 
+		String opName = "WindowMultiPass(" + stepDiscretizer.f0 + ")"; 
 		WindowMultiPassOperator combinedOperator = new WindowMultiPassOperator(windowedStream1.getInput().getKeySelector(),feedbackSelector, stepDiscretizer.f1, coWinTerm);
 		return new TwoInputTransformation<>(
 			windowedStream1.getInput().getTransformation(),

@@ -193,5 +193,10 @@ public class BarrierBufferMassiveRandomTest {
 		public int getPageSize() {
 			return PAGE_SIZE;
 		}
+
+		@Override
+		public int getPriority() {
+			return 0;
+		}
 	}
 }

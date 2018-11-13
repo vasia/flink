@@ -103,7 +103,7 @@ public class WindowMultiPassOperator<K, IN1, IN2, ACC2, R, S, W2 extends Window>
 	}
 	
 	public void processElement2(StreamRecord<IN2> element) throws Exception {
-		logger.info(getRuntimeContext().getIndexOfThisSubtask() +":: TWOWIN Received e from FEEDBACK - "+ element);
+		logger.info(getRuntimeContext().getIndexOfThisSubtask() +":: TWOWIN Received from FEEDBACK - "+ element);
 		winOp2.setCurrentKey(feedbackKeying.getKey(element.getValue()));
 		if(activeIterations.contains(element.getProgressContext())) {
 			winOp2.processElement(element);
