@@ -309,7 +309,7 @@ public class PrioritizedUnionInputGate implements InputGate, InputGateListener {
 				return;
 			}
 
-			availableInputGates = inputGatesWithData.size();
+			availableInputGates = inputGatesWithDataFlattened.size();
 			queueMappings.get(inputGate.getPriority()).add(inputGate);
 
 			inputGatesWithDataFlattened.add(inputGate);
