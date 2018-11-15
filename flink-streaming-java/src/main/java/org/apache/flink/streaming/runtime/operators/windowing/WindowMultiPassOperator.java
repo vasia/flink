@@ -119,6 +119,7 @@ public class WindowMultiPassOperator<K, IN1, IN2, ACC2, R, S, W2 extends Window>
 				loopFunction.entry(new LoopContext(mark.getContext(), 0, entry.getKey()), entry.getValue(), collector);
 			}
 			entryBuffer.remove(mark.getContext()); //entry is done for that context
+			entryBuffer.remove(mark.getContext()); //entry is done for that context
 		}
 		output.emitWatermark(mark);
 		lastLocalEndPerContext.put(mark.getContext(), System.currentTimeMillis());
@@ -150,13 +151,5 @@ public class WindowMultiPassOperator<K, IN1, IN2, ACC2, R, S, W2 extends Window>
 
 	@Override
 	public void sendMetrics(long windowEnd, List<Long> context) {
-//		if (getContainingTask().getEnvironment().getExecutionConfig().isExperimentMetricsEnabled()) {
-//			getContainingTask().getEnvironment().getJobManagerRef().tell(
-//				new ProgressMetricsReport(getContainingTask().getEnvironment().getJobID(),
-//					getOperatorConfig().getVertexID(),
-//					getRuntimeContext().getIndexOfThisSubtask(),
-//					context, lastWinStartPerContext.get(context), lastLocalEndPerContext.get(context), windowEnd
-//				), ActorRef.noSender());
-//		}
 	}
 }

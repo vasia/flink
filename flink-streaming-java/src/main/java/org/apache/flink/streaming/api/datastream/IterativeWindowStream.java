@@ -14,6 +14,7 @@ import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.streaming.api.collector.selector.OutputSelector;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.windowing.LoopContext;
+import org.apache.flink.streaming.api.functions.windowing.RichWindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowLoopFunction;
 import org.apache.flink.streaming.api.transformations.CoFeedbackTransformation;
@@ -160,10 +161,6 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 		WindowAssigner windowAssigner = windowedStream.getWindowAssigner();
 		StreamExecutionEnvironment environment = windowedStream.getExecutionEnvironment();
 
-		//clean the closure
-		// TODO is it ok to skip this???
-		//function = input.getExecutionEnvironment().clean(function);
-
 		String callLocation = Utils.getCallLocationName();
 		String udfName = "WindowedStream." + callLocation;
 
@@ -216,7 +213,7 @@ public class IterativeWindowStream<IN, IN_W extends Window, F, K, R, S> {
 	}
 	
 
-	private static class WrappedWindowFunction2<IN, OUT, K, W extends TimeWindow> implements WindowFunction<IN, OUT, K, W> {
+	private static class WrappedWindowFunction2<IN, OUT, K, W extends TimeWindow> extends RichWindowFunction<IN,OUT,K,W> {
 
 		WindowLoopFunction coWinTerm;
 

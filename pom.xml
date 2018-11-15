@@ -74,12 +74,12 @@ under the License.
 		<module>flink-end-to-end-tests</module>
 		<module>flink-test-utils-parent</module>
 		<module>flink-state-backends</module>
-		<module>flink-libraries</module>
-		<module>flink-scala-shell</module>
+		<!--<module>flink-libraries</module>-->
+		<!--<module>flink-scala-shell</module>-->
 		<module>flink-quickstart</module>
 		<module>flink-contrib</module>
 		<module>flink-dist</module>
-		<module>flink-mesos</module>
+		<!--<module>flink-mesos</module>-->
 		<module>flink-metrics</module>
 		<module>flink-yarn</module>
 		<module>flink-yarn-tests</module>
@@ -126,7 +126,7 @@ under the License.
 		<mockito.version>1.10.19</mockito.version>
 		<powermock.version>1.6.5</powermock.version>
 		<hamcrest.version>1.3</hamcrest.version>
-		<japicmp.skip>false</japicmp.skip>
+		<japicmp.skip>true</japicmp.skip>
 		<codebase>new</codebase>
 		<!--
 			Keeping the MiniKDC version fixed instead of taking hadoop version dependency

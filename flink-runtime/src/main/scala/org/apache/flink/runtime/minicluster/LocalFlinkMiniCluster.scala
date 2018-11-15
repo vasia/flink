@@ -18,6 +18,7 @@
 
 package org.apache.flink.runtime.minicluster
 
+import java.lang
 import java.net.InetAddress
 import java.util.concurrent.{Executor, ScheduledExecutorService}
 
@@ -366,10 +367,9 @@ class LocalFlinkMiniCluster(
   }
 
   def setMemory(config: Configuration): Unit = {
+    val managedmemorysize : ConfigOption[Long]= TaskManagerOptions.MANAGED_MEMORY_SIZE.asInstanceOf[ConfigOption[Long]]
     // set this only if no memory was pre-configured
-    if (config.getLong(TaskManagerOptions.MANAGED_MEMORY_SIZE) ==
-        TaskManagerOptions.MANAGED_MEMORY_SIZE.defaultValue()) {
-
+    if (managedmemorysize.defaultValue() == TaskManagerOptions.MANAGED_MEMORY_SIZE.defaultValue()) {
       val numTaskManager = config.getInteger(
         ConfigConstants.LOCAL_NUMBER_TASK_MANAGER,
         ConfigConstants.DEFAULT_LOCAL_NUMBER_TASK_MANAGER)
@@ -387,7 +387,7 @@ class LocalFlinkMiniCluster(
       memorySize -= TaskManagerServices.calculateNetworkBufferMemory(memorySize, config)
       memorySize = (memorySize * memoryFraction).toLong
       memorySize >>= 20 // bytes to megabytes
-      config.setLong(TaskManagerOptions.MANAGED_MEMORY_SIZE, memorySize)
+      config.setLong(TaskManagerOptions.MANAGED_MEMORY_SIZE.asInstanceOf[ConfigOption[lang.Long]], memorySize)
     }
   }
 
